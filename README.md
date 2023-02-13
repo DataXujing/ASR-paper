@@ -1,12 +1,11 @@
 <img src="docs/_media/icon.svg" align="right" alt="logo" height="180" width="180" />
 
-# Welcome to NLP learning
+# Welcome to ASR learning
 
 **徐静**
 
-HomePage: [https://dataxujing.github.io/](https://dataxujing.github.io/)
-
-2020年之前整理了很多关于NLP的零散教程，请在我的GitHub进行搜索！
+2017年开始关注语音识别(ASR)，中间放弃了一段时间，这两年由于Transformer的流行，其端到端的ASR和基于工业应用的开源框架
+层出不穷，让我们开始学习吧！
 
 <!-- <div align=center>
 <img src="./zh-cn/img/index/cnn_hist.png" />
@@ -14,6 +13,9 @@ HomePage: [https://dataxujing.github.io/](https://dataxujing.github.io/)
 
 
 ### 目录
+
+TODO
+
 
 * [x] [关于](zh-cn/about)
 * [x] [0.主页](zh-cn/index)

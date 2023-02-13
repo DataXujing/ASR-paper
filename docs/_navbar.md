@@ -7,6 +7,6 @@
   - [:ru: Russian](/en/error) -->
 
 <!-- v2 -->
-- Translations
+- ZH/EN
   - [:cn: 中文](/zh-cn/index)
   - [:uk: English](/en/error)

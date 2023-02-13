@@ -1,9 +1,9 @@
 ![logo](_media/icon.svg)
 
-# 自然语言处理(NLP)
+# 语音识别(ASR)
 <!-- ## DeepLearning-CNN -->
 
-> 自然语言处理教程
+> 语音识别教程
 
 <!-- * - word2vec
 * - GloVe
@@ -22,5 +22,5 @@
  -->
 
 
-[GitHub](https://github.com/DataXujing/NLP-paper)
+[GitHub](https://github.com/DataXujing/ASR-paper)
 [Get Started](/zh-cn/index)
