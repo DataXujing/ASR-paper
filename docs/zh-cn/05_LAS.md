@@ -110,3 +110,5 @@ Listen结构的好处：
 
 
 ### 基于普通话的模型训练和测试
+
+我们基于开源项目实现了LAS的训练，验证和离线推断，请参考：<https://github.com/ASR-studio/LAS-ASR>
