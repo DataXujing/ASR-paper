@@ -25,7 +25,7 @@ TODO
 - [x] [6.CTC](zh-cn/06_CTC.md)
 - [x] [7.RNA](zh-cn/07_RNA.md)
 - [x] [8.RNN-Transducer(RNN-T)](zh-cn/08_RNN-T.md)
-- [] [9.Neural Transducer](zh-cn/09_NN-T.md)
+- [x] [9.Neural Transducer](zh-cn/09_NN-T.md)
 - [] [10.MoChA](zh-cn/10_MoCHA.md)
 - [] [11.Conformer](zh-cn/11_Conformer.md)
 - [] [12.Transfomer-Transducer](zh-cn/12_Transfomer-Transducer.md)
