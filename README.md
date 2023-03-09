@@ -32,7 +32,7 @@ TODO
 - [] [13.DeepSpeech V1,V2,V3](zh-cn/13_DeepSpeech.md)
 - [] [14.FSMN](zh-cn/14_FSMN.md)
 - [] [15.TDNN](zh-cn/15_TDNN.md)
-- [] [16.Quartznet](zh-cn/16_Quartznet.md)
+- [x] [16.Quartznet](zh-cn/16_Quartznet.md)
 - [] [17.Jasper](zh-cn/17_Jasper.md)
 - [] [18.Citrinet](zh-cn/18_Citrinet.md)
 - [] [19.ContextNet](zh-cn/19_ContextNet.md)

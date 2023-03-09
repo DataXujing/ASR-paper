@@ -1,5 +1,4 @@
-## Transfomer-Transducer:A STREAMABLE SPEECH RECOGNITION MODEL WITH TRANSFORMER ENCODERS AND RNN-T LOSS
-
+## Transfomer-Transducer:A Streaming Speech Recognition Model with Transformer Encoders and RNN-T Loss
 
 <!-- https://blog.csdn.net/qq13269503103/article/details/105233648 -->
 
