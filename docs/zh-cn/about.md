@@ -32,6 +32,8 @@
 |2023-03-06            |  Neural Transducer        |
 |2023-03-07            |  MoCha       |
 |2023-03-08            |  Conformer       |
+|2023-03-09            |  Transformer-Transducer       |
+
 
 
 

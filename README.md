@@ -28,7 +28,7 @@ TODO
 - [x] [9.Neural Transducer](zh-cn/09_NN-T.md)
 - [x] [10.MoChA](zh-cn/10_MoCHA.md)
 - [x] [11.Conformer](zh-cn/11_Conformer.md)
-- [] [12.Transfomer-Transducer](zh-cn/12_Transfomer-Transducer.md)
+- [x] [12.Transfomer-Transducer](zh-cn/12_Transfomer-Transducer.md)
 - [] [13.DeepSpeech V1,V2,V3](zh-cn/13_DeepSpeech.md)
 - [] [14.FSMN](zh-cn/14_FSMN.md)
 - [] [15.TDNN](zh-cn/15_TDNN.md)
