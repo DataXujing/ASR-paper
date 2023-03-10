@@ -33,7 +33,7 @@ TODO
 - [] [14.FSMN](zh-cn/14_FSMN.md)
 - [] [15.TDNN](zh-cn/15_TDNN.md)
 - [x] [16.Quartznet](zh-cn/16_Quartznet.md)
-- [] [17.Jasper](zh-cn/17_Jasper.md)
+- [x] [17.Jasper](zh-cn/17_Jasper.md)
 - [] [18.Citrinet](zh-cn/18_Citrinet.md)
 - [] [19.ContextNet](zh-cn/19_ContextNet.md)
 <!-- - [] [20.Conformer-CTC](zh-cn/20_Conformer-CTC.md) -->
