@@ -27,7 +27,7 @@
 * [30.Squeezeformer](zh-cn/30_sqeezeformer.md)
 * [24.开源语音识别数据集介绍](zh-cn/23_datasets.md)
 * [25.Kaldi学习](zh-cn/24_kaldi_1.md)
-* [26.Kaldi2学习](zh-cn/25_kaldi_2.md)
+* [26.K2学习](zh-cn/25_kaldi_2.md)
 * [27.WeNet学习](zh-cn/26_wenet.md)
 * [28.ESPNet学习](zh-cn/27_espnet.md)
 * [29.NeMo学习](zh-cn/28_nemo.md)

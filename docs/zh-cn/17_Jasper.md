@@ -158,7 +158,7 @@ Jasper的训练过程使用了一种新的优化器，其类似于Adam。在时�
     <img src="zh-cn/img/ch14/p15.png"   /> 
 </div>
 
-二阶矩$v_t^l$用来re-scale梯度$g_t^l$,传统的计算一阶矩$m——t^l$:
+二阶矩$v_t^l$用来re-scale梯度$g_t^l$,传统的计算一阶矩$m_t^l$:
 
 <div align=center>
     <img src="zh-cn/img/ch14/p16.png"   /> 
