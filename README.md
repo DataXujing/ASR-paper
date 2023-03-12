@@ -32,8 +32,7 @@
 - [x] 16.Quartznet
 - [x] 17.Jasper
 - [x] 18.Citrinet
-- [ ] 19.ContextNet
-<!-- - [ ] 20.Conformer-CTC -->
+- [x] 19.ContextNet <!-- - [ ] 20.Conformer-CTC -->
 - [ ] 20.WeNet_paper
 - [ ] 21.WFST
 - [ ] 22.Hybrid CTC/Attention
