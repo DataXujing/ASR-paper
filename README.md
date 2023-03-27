@@ -34,7 +34,7 @@
 - [x] 18.Citrinet
 - [x] 19.ContextNet <!-- - [ ] 20.Conformer-CTC -->
 - [ ] 20.WeNet_paper
-- [ ] 21.WFST
+- [x] 21.WFST
 - [ ] 22.Hybrid CTC/Attention
 - [ ] 29.Speech-Transformer
 - [ ] 30.squeezeformer
