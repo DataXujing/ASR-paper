@@ -37,8 +37,8 @@
 - [x] 21.WFST
 - [ ] 22.Hybrid CTC/Attention
 - [x] 29.Speech-Transformer
-- [ ] 30.squeezeformer
-- [ ] 23.开源语音识别数据集介绍
+- [x] 30.squeezeformer
+- [x] 23.开源语音识别数据集介绍
 - [ ] 24.Kaldi学习
 - [ ] 25.K2学习
 - [ ] 26.WeNet学习
