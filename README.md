@@ -35,7 +35,7 @@
 - [x] 19.ContextNet <!-- - [ ] 20.Conformer-CTC -->
 - [ ] 20.WeNet_paper
 - [x] 21.WFST
-- [ ] 22.Hybrid CTC/Attention
+- [x] 22.Hybrid CTC/Attention
 - [x] 29.Speech-Transformer
 - [x] 30.squeezeformer
 - [x] 23.开源语音识别数据集介绍

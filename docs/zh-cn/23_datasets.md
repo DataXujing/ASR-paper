@@ -16,8 +16,108 @@
 + 中文普通话
 
 
-<div align=center>
+<div style="text-align:center;margin:0,auto;">
 
+<table style="width: 100%;margin:auto">
+<thead>
+<tr>
+<th></th>
+<th>数据</th>
+<th>描述</th>
+<th>链接</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>WenetSpeech</td>
+<td>10000小时，强烈推荐</td>
+<td><a href="https://github.com/wenet-e2e/WenetSpeech" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Aishell-1</td>
+<td>178小时</td>
+<td><a href="https://www.aishelltech.com/kysjcp" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Aishell-2</td>
+<td>1000小时</td>
+<td><a href="http://www.aishelltech.com/aishell_2" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>4</td>
+<td>mozilla common voice</td>
+<td>提供各种语言的音频,目前14122小时87中语言</td>
+<td><a href="https://commonvoice.mozilla.org/zh-CN/datasets" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>5</td>
+<td>OpenSLR</td>
+<td>提供各种语言的合成、识别等语料</td>
+<td><a href="https://www.openslr.org/resources.php" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>6</td>
+<td>open speech corpora</td>
+<td>各类数据搜集</td>
+<td><a href="https://github.com/coqui-ai/open-speech-corpora" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>7</td>
+<td>AiShell-4</td>
+<td>211场会议，120小时</td>
+<td><a href="http://www.aishelltech.com/aishell_4" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>8</td>
+<td>AliMeeting</td>
+<td>118.75小时会议数据</td>
+<td><a href="https://www.openslr.org/119/" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>9</td>
+<td>Free ST Chinese Mandarin Corpus</td>
+<td>855发音人102600句手机录制</td>
+<td><a href="https://www.openslr.org/38/" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>10</td>
+<td>aidatatang_200zh</td>
+<td>200小时600发音人文本准确98%</td>
+<td><a href="https://www.openslr.org/62/" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>11</td>
+<td>magicData-RAMC</td>
+<td>180小时中文spontaneous conversation</td>
+<td><a href="https://www.magicdatatech.com/datasets/mdt2021s003-1647827542" target="_blank" rel="noopener">link</a> <a href="https://openslr.magicdatatech.com/resources/18/" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>12</td>
+<td>TAL_CSASR</td>
+<td>中英混合587小时</td>
+<td><a href="https://ai.100tal.com/dataset" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>13</td>
+<td>TAL_ASR</td>
+<td>100小时讲课</td>
+<td><a href="https://ai.100tal.com/dataset" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>14</td>
+<td>THCHS30</td>
+<td>清华大学THCHS30中文语音数据集</td>
+<td><a href="http://openslr.magicdatatech.com/resources/18/data_thchs30.tgz" target="_blank" rel="noopener">link</a></td>
+</tr>
+</tbody></table>
+
+</div>
+
+
+
+<!-- 
 |      | 数据                            | 描述                                     | 链接                                                         |
 | ---- | ------------------------------- | ---------------------------------------- | ------------------------------------------------------------ |
 | 1    | WenetSpeech                     | 10000小时，强烈推荐                      | [link](https://github.com/wenet-e2e/WenetSpeech)             |
@@ -34,14 +134,96 @@
 | 12   | TAL_CSASR                       | 中英混合587小时                          | [link](https://ai.100tal.com/dataset)                        |
 | 13   | TAL_ASR                         | 100小时讲课                              | [link](https://ai.100tal.com/dataset)                        |
 | 14   | THCHS30                         | 清华大学THCHS30中文语音数据集            | [link](http://openslr.magicdatatech.com/resources/18/data_thchs30.tgz) |
+ -->
 
-</div>
 
 
 + 英文
 
-<div align=center>
 
+<div style="text-align:center;margin:0,auto;">
+
+<table style="width: 100%;margin:auto">
+<thead>
+<tr>
+<th></th>
+<th>数据</th>
+<th>描述</th>
+<th>链接</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>GigaSpeech</td>
+<td>10000小时，强烈推荐</td>
+<td><a href="https://github.com/SpeechColab/GigaSpeech" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>2</td>
+<td>mozilla common voice</td>
+<td>提供各种语言的音频,目前14122小时87中语言</td>
+<td><a href="https://commonvoice.mozilla.org/zh-CN/datasets" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>3</td>
+<td>OpenSLR</td>
+<td>提供各种语言的合成、识别等语料</td>
+<td><a href="https://www.openslr.org/resources.php" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Chime-4</td>
+<td></td>
+<td><a href="http://spandh.dcs.shef.ac.uk/chime_challenge/CHiME4/download.html" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>5</td>
+<td>People's speech</td>
+<td>30000小时英文</td>
+<td><a href="https://arxiv.org/pdf/2111.09344.pdf" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>6</td>
+<td>LibriSpeech</td>
+<td>1000小时audiobooks</td>
+<td><a href="http://www.openslr.org/12/" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>7</td>
+<td>earnings21</td>
+<td>39小时电话会议</td>
+<td><a href="https://github.com/revdotcom/speech-datasets/tree/main/earnings21" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>8</td>
+<td>MLS</td>
+<td>50000小时多语言语料</td>
+<td><a href="http://www.openslr.org/94/" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>9</td>
+<td>open speech corpora</td>
+<td>各类数据搜集</td>
+<td><a href="https://github.com/coqui-ai/open-speech-corpora" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>10</td>
+<td>TED-LIUM 3</td>
+<td>452小时</td>
+<td><a href="https://www.openslr.org/51/" target="_blank" rel="noopener">link</a></td>
+</tr>
+<tr>
+<td>11</td>
+<td>VoxForge</td>
+<td>讲话转录</td>
+<td><a href="http://www.repository.voxforge1.org/downloads/SpeechCorpus/Trunk/" target="_blank" rel="noopener">link</a></td>
+</tr>
+</tbody></table>
+
+</div>
+
+
+<!-- 
 |      | 数据                 | 描述                                     | 链接                                                         |
 | ---- | -------------------- | ---------------------------------------- | ------------------------------------------------------------ |
 | 1    | GigaSpeech           | 10000小时，强烈推荐                      | [link](https://github.com/SpeechColab/GigaSpeech)            |
@@ -54,9 +236,9 @@
 | 8    | MLS                  | 50000小时多语言语料                      | [link](http://www.openslr.org/94/)                           |
 | 9    | open speech corpora  | 各类数据搜集                             | [link](https://github.com/coqui-ai/open-speech-corpora)      |
 | 10   | TED-LIUM 3           | 452小时                                  | [link](https://www.openslr.org/51/)                          |
-| 11   | VoxForge             | 讲话转录                                 | [link](http://www.repository.voxforge1.org/downloads/SpeechCorpus/Trunk/) |
+| 11   | VoxForge             | 讲话转录                                 | [link](http://www.repository.voxforge1.org/downloads/SpeechCorpus/Trunk/) | -->
 
-</div>
+
 
 + 其他语言
 
