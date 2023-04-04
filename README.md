@@ -33,7 +33,7 @@
 - [x] 17.Jasper
 - [x] 18.Citrinet
 - [x] 19.ContextNet <!-- - [ ] 20.Conformer-CTC -->
-- [ ] 20.WeNet_paper
+- [x] 20.WeNet_paper
 - [x] 21.WFST
 - [x] 22.Hybrid CTC/Attention
 - [x] 29.Speech-Transformer
