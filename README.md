@@ -27,7 +27,7 @@
 - [x] 11.Conformer
 - [x] 12.Transfomer-Transducer
 - [ ] 13.DeepSpeech V1,V2,V3
-- [ ] 14.FSMN
+- [x] 14.FSMN
 - [x] 15.TDNN
 - [x] 16.Quartznet
 - [x] 17.Jasper
