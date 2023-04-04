@@ -26,7 +26,7 @@
 - [x] 10.MoChA]
 - [x] 11.Conformer
 - [x] 12.Transfomer-Transducer
-- [ ] 13.DeepSpeech V1,V2,V3
+- [x] 13.DeepSpeech V1,V2,V3
 - [x] 14.FSMN
 - [x] 15.TDNN
 - [x] 16.Quartznet

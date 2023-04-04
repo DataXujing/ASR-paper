@@ -242,3 +242,5 @@ arc（弧） sequentially to generate an acceptable chain.
 <div align=center>
     <img src="zh-cn/img/ch21/p15.png"   /> 
 </div>
+
+!> 最后让我们期待WeNet 3.0,作者介绍WeNet3.0可能关注语音识别中的无监督或自监督学习！
