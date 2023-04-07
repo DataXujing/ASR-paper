@@ -395,3 +395,144 @@ $$l^*=argmax_{l∈Align(x,y)}\prod^T_tp_{ctc}(l_t|x;\theta)$$
 
 ### 3.DeepSpeech V3：Exploring Neural Transducers for End-to-End Speech Recognition
 
+!> 个人觉得DeepSpeech V3并没有新的idea产生，不过那是在2017年已经非常不错了！
+
+#### 3.1 摘要
+
+本文中，百度的工程师对比了CTC,RNN-T和attention-based Seq2Seq模型在ASR中的应用。Hub5’00 benchmark上在没有语言模型加持的情况下，Seq2Seq和RNN-T要比CTC+LM表现的更好。在百度内部数据集集中RNN-T+LM比CTC表现要好。
+
+#### 3.2 Introduction
+
+最近深度神经网在语音识别中取得了SOTA的结果。深度神经网络不仅可以为传统的HMM模型提供声学特征提取，还可以作为序列转换直接应用到ASR中。对于序列的transduction的最大挑战是input和output的长度不同且不固定。语音的transducer需要学习声学特征和语言输出的对齐及映射关系。本文我们对比了CTC,RNN-T,Seq2Seq with attention模型，这些模型的不同点如下：
+
++ 给定声学特征$x$,不同时间步的预测是条件对立的: CTC会有这样的假设，但是RNN-T和Attention model不存在
++ input和output的对齐是单调的（The alignment between input and output units is monotonic.）：CTC和RNN-T满足该条件但是Attention 模型不行，这就是传统的Transformer based的模型不能直接做流式识别的原因。
++ 硬或软对齐（Hard vs Soft alignments）：CTC和RNN-T强制处理input和output的对齐，将其作为隐变量。训练时考虑所有可能的硬对齐，而Attention model是软对齐。
+
+CTC的模型假设时间步之间的预测是条件独立的，这显然是是存在问题的，而RNN-T和Attention可以学习一个内含的LM优化WER。
+
+#### 3.3 Neutal Speech Transducers
+
+一般的一个Speech transducer包含一个encoder(一般称为声学模型)，其作用是将声学特征编码为高层的抽象表示，一个decoder用来解码语言输出（输出可以是字符或词等token),input和output不是等长的，并且训练数据是非对齐的，模型需要干的事情有两件一个是对齐任务一个是token的分类任务
+
+input sequence:
+
+$$x=(x_1,...,x_T)$$
+
+output sequence:
+$$y=(y_1,...,y_U)$$
+
+其中$y_u$是一个$V$维的one-hot向量。
+
+transducer model 建模$p(y|x)$,encoder 将input $x$映射为$h=(h_1,...,h_{T^{'}})(T^{'} < T)$,encoder可以用feed-forward neural networks(DNNs),RNNs,CNNs,Transformer based encoder, Conformer based encoder, decoder定义了对齐$a$及$h$到$y$的映射。
+
+<div align=center>
+    <img src="zh-cn/img/ch24/p20.png"   /> 
+</div>
+
+
+##### 3.3.1 CTC
+
+CTC计算所有可能对齐的边际分布的条件概率，并假设output predictions在时间方向上是条件独立的。在CTC中存在一个额外的"blank"标签，可以认为是no label, 引入它使得$h$和$y$是等长度的。
+
+<div align=center>
+    <img src="zh-cn/img/ch24/p21.png"   /> 
+</div>
+
+表示所有映射为最终label $y$的所有有效的对齐$a$。$P_{CTC}(y|x)$可以通过动态的前向-后向算法进行估计。需要注意的是对齐$a$是局部和单调的：
+
+<div align=center>
+    <img src="zh-cn/img/ch24/p22.png"   /> 
+</div>
+
+解码过程为了使得beam search更高效可以融入语言模型，最终解码最大化如下式子：
+
+<div align=center>
+    <img src="zh-cn/img/ch24/p23.png"   /> 
+</div>
+
+##### 3.3.2 RNN-Transducer
+
+RNN-T和CTC类似也是建模所有对齐的边际分布的条件概率，但是和CTC不同的是RNN-T模型中加入了之前时间步的信息而不是条件独立的，对于$u$步的预测结果$y_u$不仅仅只依赖于input $h$还依赖于之前的预测$\{y_{ <u } \} $.
+
+<div align=center>
+    <img src="zh-cn/img/ch24/p24.png"   /> 
+</div>
+
+这里的$u_t$表示在时间步$t$ 消除对齐后的输出$y$的时间步。
+
+额外的RNN（其实就是一个语言模型）用来确定对齐$a_t$，因为RNN-T需要确定预测下一个字符是否跳出该时间步：
+
+<div align=center>
+    <img src="zh-cn/img/ch24/p25.png"   /> 
+</div>
+
+<div align=center>
+    <img src="zh-cn/img/ch24/p26.png"   /> 
+</div>
+
+<div align=center>
+    <img src="zh-cn/img/ch24/p27.png"   /> 
+</div>
+
+##### 3.3.3 Attention Model
+
+Attention based model 使用注意力机制对齐input和output，像RNN-T一样消除了条件独立性的假设，不同于CTC和RNN-T它没有对齐的单调性的假设是一种soft alignment:
+
+<div align=center>
+    <img src="zh-cn/img/ch24/p28.png"   /> 
+</div>
+
+<div align=center>
+    <img src="zh-cn/img/ch24/p29.png"   /> 
+</div>
+
+
+这里的$c_u$是上下文向量(context vector),$g_u$是第$u$步的decoder的hidden states,$e_u$的计算有多重方式。本文中用到的Attention based model可以表示为：
+
+<div align=center>
+    <img src="zh-cn/img/ch24/p30.png"   /> 
+</div>
+
+attention机制使得模型的output 可以attend到任意时间步骤，这样对齐就是non-local和non-monotonic的。解码的任务最大化：
+
+<div align=center>
+    <img src="zh-cn/img/ch24/p31.png"   /> 
+</div>
+
+这里的$cov(\alpha)$是为了控制attention attend到所有的时间步骤上我不是仅仅attend到当前时间步。
+
+!> 关于CTC, RNN-T,Attention-based model 笔者在其他章节有详细的介绍，如果深入学习这三种模型请读者移驾到相应章节学习！
+
+
+#### 3.4 Performance at Scale
+
+下面是上述三种模型在Hub5'00和百度内部DeepSpeech数据集上的测试结果
+
+<div align=center>
+    <img src="zh-cn/img/ch24/p32.png"   /> 
+</div>
+
+
+#### 3.5 Impact of Encoder Architecture
+
+为了流式识别，这里Encoder测试了Forward-only的模型和Bidirectional两种模型的WER,如此下图所示：
+
+<div align=center>
+    <img src="zh-cn/img/ch24/p33.png"   /> 
+</div>
+
+
+#### 3.6 Alignment Visualization
+
+下面是对三种模型的对齐的可视化：
+
+<div align=center>
+    <img src="zh-cn/img/ch24/p34.png"   /> 
+</div>
+
++ 我们看到最左边CTC的对其在x轴上有空白跳动，那是因为CTC中"blank"插入到对齐的原因
++ 对于中间RNN-T发现相同的input（column)会attend到不同的label,这在RNN-T和Attention中很常见也满足他们模型的特性
++ CTC和RNN-T 更集中(颜色更浓)，相比于Attention而言
+
+综上所述，本文彻底的对比了CTC,RNN-T和Attention based model,三种模型的表现大体一致，需要注意的是CTC模型训练过程简单但需要语言模型加持，RNN-T和Attention也简化了解码过程，并且要求仅在后处理阶段引入的语言模型也是有效的。因此综上RNN-T没有额外超惨解码简单，让我们相信可以成为下一代ASR模型的范式。

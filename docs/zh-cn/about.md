@@ -46,7 +46,7 @@
 |2023-04-04            |  TDNN       |
 |2023-04-04            |  FSMN      |
 |2023-04-05            |  DeepSpeech v1,v2      |
-|2023-04-07            |  DeepSpeech v3      |
+|2023-04-06            |  DeepSpeech v3      |
 
 
 
