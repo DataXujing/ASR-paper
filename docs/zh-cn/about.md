@@ -48,6 +48,8 @@
 |2023-04-05            |  DeepSpeech v1,v2      |
 |2023-04-06            |  DeepSpeech v3      |
 |2023-04-10            |  NeMo      |
+|2023-04-14            |  WeNet      |
+
 
 
 
