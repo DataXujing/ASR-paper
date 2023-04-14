@@ -42,7 +42,7 @@
 - [ ] 24.Kaldi学习
 - [ ] 25.K2学习
 - [x] 26.WeNet学习
-- [ ] 27.ESPNet学习
+- [x] 27.ESPNet学习
 - [x] 28.NeMo学习
 - Triton inference server部署ASR服务(暂时不开源,可提供有偿服务)
 - TensorRT ASR模型部署(暂时不开源，可提供有偿服务)

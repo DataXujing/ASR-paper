@@ -6,6 +6,7 @@
 4. wenet 转onnx TensorRT部署
 5. wenet  Triton部署 -->
 
+!> https://github.com/wenet-e2e/wenet
 
 ### 1.WeNet环境搭建
 
@@ -793,7 +794,7 @@ client: simply replace grpc_client_main with http_client_main in gRPC.
 这一届将介绍如何将离线或在线的WeNet模型部署到Triton Inference Server。
 
 <div align=center>
-    <img src="zh-cn/img/ch26/10.jpg"   /> 
+    <img src="zh-cn/img/ch26/p10.jpg"   /> 
 </div>
 
 **>>> step 1: 将模型转换成ONNX**
