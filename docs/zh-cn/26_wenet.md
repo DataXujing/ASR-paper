@@ -627,7 +627,7 @@ python3 ../../../wenet/bin/export_onnx_gpu.py \
 </div>
 
 
-如上图所示我们成功导出decoder.onnx和encoder.onnx,在2022年的天池-NVIDIA Transformer异构计算模型优化大赛中初赛我们优化了WeNet使其在TensorRT中可以正常推断，我们团队是600余支队伍中读一个优化成功的参赛队伍并在 初赛中以Top30进入决赛，并最终综合初赛和决赛取得了该场比赛的第一名。我们也将在下一节关于WeNet的Triton Inference Server的部署中详细介绍部署方案。
+如上图所示我们成功导出decoder.onnx和encoder.onnx,在2022年的天池-NVIDIA Transformer异构计算模型优化大赛中初赛我们优化了WeNet使其在TensorRT中可以正常推断，我们团队是600余支队伍中第一个优化成功的参赛队伍，也是第一个将LayerNorm Plugin用在WeNet的TensorRT异构计算中并提高了WeNet在TensorRT下的运行速度和精度,并在 初赛中以Top30进入决赛，并最终综合初赛和决赛取得了该场比赛的第一名。我们也将在下一节关于WeNet的Triton Inference Server的部署中详细介绍部署方案。
 
 
 ### 3.WeNet Server x86 ASR Demo
