@@ -742,8 +742,219 @@ HMM模型$λ=(A,B,Π)$。我们对初始对齐的模型进行count。count什么
 
 #### 4.1 基于i-vector和PLDA的说话人识别技术
 
+##### 4.1.1 整体流程
+
+本节介绍一种传统说话人识别框架：基于i-vector和PLDA的说话人识别。Kaldi的src08示例完整的演示了该框架的流程。
+
+src08是Kaldi针对美国国家标准与技术研究院在2008年举办的说话人识别比赛任务的解决方案，该比赛从1996年开始举办，从2006年起没两年举办一次，最近的一次是2018年。本节以这个示例为主线，介绍使用i-vector+PLDA框架进行说话人识别的流程。
+
+和其他示例一样，sre08的进入也是run.sh。这个脚本由如下几个主要部分构成。
+
++ 下载数据。训练数据合并了很多数据集，如Fisher,2004-2008年的sre训练集等。
++ 提取声学特征。这里提取20维的MFCC
++ "语音/非语音"检测。由于静音会对说话人识别造成干扰，因此需要把静音滤出
++ 用数据训练i-vector提取器。
++ 提取i-vector
++ 根据提取的i-vector做说话人识别。脚本里演示了多种方法，效果最好的PLDA
+
+```shell
+## 下载数据
+local/make_fisher.sh ...
+utils/combine_data.sh ...
+
+## 提取声学特征
+steps/make_mfcc.sh ...
+
+## 静音检测
+sid/compute_vad_decision.sh ...
+
+## 用训练数据训练i-vector提取器
+sid/train_diag_ubm.sh ...
+sid/train_ivetcor_extractor.sh ...
+
+## 提取i-vector
+sid/extract_ivectors.sh ...
+
+## 根据提取的i-vector进行说话人识别
+ivector-compute-plda ...
+ivector-plda-scoring ...
+local/score_sre08.sh ...
+
+```
+
+##### 4.1.2 i-vector的提取
+
+i-vector由Kenny等学者提出，由Joint Factor Analysis简化而来，表征了说话人相关的重要的信息。下面介绍i-vector的提取方法。
+
+首先用包含很多说话人的声学特征训练GMM模型，称为通用背景模型（UBM）
+
+```
+## 首先训练一个对角协方差矩阵的UBM
+sid/train_diag_ubm.sh --nj 30 --cmd "$train_cmd" data/train_4k 2048 exp/diag_ubm_2048
+
+## 使用已训练的对角协方差矩阵作为迭代的起点，训练非对角协方差阵的UBM
+
+## 协方差阵将在求逆后用于i-vector提取器的训练集i-vector的提取
+sid/train_full_ubm.sh --nj 30 --cmd "$train_cmd" data/train_8k exp/diag_ubm_2048 exp/full_ubm_2048
+```
+
+把UBM的个高斯分量的均值拼接起来，就构成了一个超向量记做$\bar{\mu}$.对于某特定的说话人，如果其声学特征的概率分布也可以用GMM建模。那么拼接该GMM的高斯分量均值，就得到该说话人的超向量，记做$\mu$.我们假设$\mu$和$\bar{\mu}$存在下面的关系
+$$\mu=\bar{\mu}+Tw$$
+
+在上式中$T$是一个矩阵，向量$w$可以认为是矩阵$T$的列向量张成的空间的坐标，我们可以用该坐标表示说话人信息，向量$w$即是我们所说的i-vector.
+
+由于$w$未知，$T$的训练是一个含有隐含变量的最大似然估计问题。因此需要使用EM算法。其中E步计算训练集下的$w$的条件概率$p(w|x)$,M步更新$T$来最大化$p(w|x)$,E步和M步反复迭代训练得到$T$.
+
+EM训练的具体公式这里不做具体介绍，但读者需要了解的是，要计算$p(w|x)$需要计算如下统计量：
+
++ 零阶统计量：$N_c(\mu)=\sum^T_{t=1}\gamma_t(c)$,其中$\gamma_t(c)$为给定观测向量$x_t$下高斯分量$c$的后验概率$P(c|x_t)$
++ 一阶统计量：$F_c(\mu)=\sum^T_{t=1}\gamma_t(c)x_t$,在kaldi中，把提取i-vector需要用到的参数集合称为i-vector提取器，其中矩阵$T$是i-vector提取器最重要的组成部分。训练i-vector提取器的脚本在egs/sre08/v1/sid/train_ivector_extractor.sh中。这个脚本需要用到一个已经训练好的非对角协方差阵的UBM-GMM，里边的主要的操作是：ivector-extractor-sum-accs(计算各统计量)和ivector-extractor-est(使用计算的统计量，应用EM算法更新矩阵T等提取器参数)
+
+要计算$w$，读者可能想到对矩阵$T$求逆，通常$T$非方阵，且说话人相关的超向量$\mu$也不容易估计。实际上，要获取$w$的值，可以使用上文提到的训练$T$的EM算法中的E步，用各阶统计量直接求取给定序列$x$下的$p(w|x)$的均值作为$w$的估计.Kaldi的ivector-extract就是用于这个计算的。
+
+提取i-vector的脚本实例在egs/sre08/v1/sid/extract_ivector.sh中，里面的核心工具是ivector-extract.为了减少计算量，该脚本使用gmm-gselect工具把后验概率低的高斯分量滤出。在i-vector提取完毕后，该脚本的stage2部分对i-vector做了长度规整。
+
+##### 4.1.3 基于余弦距离对i-vector分类
+
+先对i-vector使用线性判别分析(LDA)降维，再计算余弦距离。LDA是一种常用的有监督的线性变换方法。其思想是通过线性变换使得类间距离最大化，同时使类内距离最小化。Kaldi对i-vector的LDA的实现在ivector-compute-lda工具中。经过LDA后等错率为6.2%，而没有LDA的 等错率为11.10%。
+
+##### 4.1.4 基于PLDA对i-vector分类
+
+Probabilistic Linear Discriminant Analysis(PLDA)最初是在人脸识别任务中提出的。被验证效果良好。说话人识别和人脸识别同属于生物信息识别范畴，借鉴人脸识别算法是自然而然的。
+
+Kaldi的PLDA的核心思想是把样本映射到一个隐空间。考虑样本$x$的分布由协方差阵正定的一个GMM定义，如果已知$x$属于某个高斯分量，且该高斯分量的均值点为$y$,那么有
+$$P(x|y)=N(x|y,\Phi_w)$$
+
+上式中的$\Phi_w$是正定的协方差阵，$y$的先验概率同样满足高斯分布；
+$$P(y)=N(y|m,\Phi_b)$$
+
+用这种方式表示的$x$如下图所示：
+
+<div align=center>
+    <img src="zh-cn/img/ch28/p54.png"   /> 
+</div>
+
+假定$\Phi_w$正定，$\Phi_b$半正定，那么我们可以找到一个非奇异的矩阵$V$,使得：
+$$V^T\Phi_bV=\Psi$$
+$$V^T\Phi_wV=I$$
+
+上式中的$\Psi$为对角阵，$I$为单位阵。
+
+如果定义$A=V^{-T}$,那么：
+$$\Phi_b=A\Psi A^T$$
+$$\Phi_w=AA^T$$
+
+把$\Phi_b,\Phi_w$对角化后，我们可以把$x$映射为一个隐变量，在这个隐变量中$\mu$表示样本，通过仿射变换$x=m+A\mu$与$x$建立联系。在这个隐空间中$\mu$满足如下高斯分布：
+$$\mu \sim N(.|v,I)$$
+
+$v$作为隐空间的类别，满足：
+
+$$v \sim N(.|0,\Psi)$$
+
+这样就可以用隐空间中的$\mu$表示样本，如下图所示：
+
+<div align=center>
+    <img src="zh-cn/img/ch28/p55.png"   /> 
+</div>
+
+在隐空间中可以预测样本$x$的类别。与常见的分类模型不同的是，即使训练数据中从未出现过某类别，仍然可以通过计算样本是否和该样本属于同一类别而将样本分为此类。考虑到$M$个类别的参样本$(x^1,...,x^M)$,现在有一个待测样本$x^p$,要预测属于$1\sim M$的哪个类别。
+
+我们首先按照映射关系$x=m+A\mu$把所有的$(x^1,...,x^M)$和$x^p$映射到隐空间：
+$$\mu=A^{-1}(x-m)$$
+对$(\mu^1,...,\mu^M)$中的每一个$\mu^g$，可计算该样本和$\mu^p$属于同一类的概率：
+$$P(\mu^p|\mu^g)=N(\mu^p|\frac{\Psi}{\Psi+I}\mu^g,I+\frac{\Psi}{\Psi+I})$$
+
+如果$M$类参考样本中每个类有$n$个样本，在上式中取$\mu^g$的平均值$\bar{\mu}^g$,即可：
+$$P(\mu^p|\mu^g_{1,...,n})=N(\mu^p|\frac{n\Psi}{n\Psi+I}\bar{\mu}^g,I+\frac{n\Psi}{n\Psi+I})$$
+
+选取使$P(\mu^p|\mu^g_{1,...,n})$最大的$\mu^g_{1,...,n}$，就得到对$\mu^p$的分类结果。
+
+现在我们已经了解如何使用PLDA进行向量分类。
+
+又上文可知，一个PLDA包含下列待训练参数：
++ 均值向量$m$
++ 协方差阵$\Psi$
++ 线性变换$A$
+
+可以使用EM算法训练这些参数，PLDA的训练 在Kaldi中的ivector-compute-plda工具中有实现。使用PLDA等错率由LDA和余弦相似度的6.2%降低到了4.68%。
+
+i-vector和PLDA从出现起就迅速取代了UBM-GMM方法。一直都是说话人识别的主流技术，虽然最近i-vector正逐渐被深度学习技术取代，但i-vector的训练无需对说话人识别的目标的目标打标签，属于无监督训练 ，这是一个重要的优势。即使在今天i-vector+PLDA的组合依然广泛应用于各种说话人识别算法中。另外i-vector包含说话人和信道特征，如果把i-vector和声学特征放在一起作为神经网络的输入，则在实践中能够有效的提升语音识别率。
 
 #### 4.2 基于深度学习的说话人识别技术
+
+##### 4.2.1 概述
+
+前面介绍了基于i-vector的说话人识别。近年来，人民倾向于使用有监督的深度学习技术来直接解决各种问题，说话人识别也不例外。
+
+基于深度学习的说话人识别，一种思路是使用DNN的输出状态代替GMM的混合分量来提取i-vector,可以达到比基于GMM的i-vector更好的性能。这种方法在Kaldi中的sec08实例中的sid/train_ivector_extractor_dnn.sh中实现了。该方法依然是i-vector,与上一节的介绍没有本质的区别。
+
+另一种思路是提取嵌入向量表征说话人信息，如下图所示：
+
+<div align=center>
+    <img src="zh-cn/img/ch28/p56.png"   /> 
+</div>
+
+得到嵌入向量后，可以用其代替i-vector,然后进行PLDA等方法进行说话人识别。本节以介绍Kaldi的sec16 v2为主线，介绍基于一种嵌入向量的x-vector的说话人识别方法。
+
+##### 4.2.2 x-vector
+<!-- https://blog.csdn.net/Robin_Pi/article/details/109575815 -->
+<!-- https://www.cnblogs.com/zy230530/p/13657793.html -->
+
+基于嵌入向量的说话人识别，一种比较有影响的方法是Google公司在2014年提出的d-vector方法，该方法将声学特征序列通过一个DNN，其分类目标是说话人标签，取该神经网络的最后一个隐藏层输出的平均值，即得到说话人嵌入向量，称作d-vector.
+
+<div align=center>
+    <img src="zh-cn/img/ch28/p57.png"   /> 
+</div>
+
+如上图：DNN训练好后，提取每一帧语音的Filterbank Energy 特征作为DNN输入，从Last Hidden Layer提取Activations，L2正则化，然后将其累加起来，得到的向量就被称为d-vector。如果一个人有多条Enroll语音，那么所有这些d-vectors做平均，就是这个人的Representation
+
+
+<div align=center>
+    <img src="zh-cn/img/ch28/p58.png"   /> 
+</div>
+
+d-vector是14年提出的一个和i-vector效果差不多的深度学习模型（还没有i-vector好）。
+它的思想很简单，在训练的时候，就是截取语音中的一小段之后，把这段放到DNN里去训练，最后输出这段话是哪个人说的。训练结束之后，倒数第二层的feature就是我们要的speaker embedding了。
+
+在实际预测的时候，我们的输入语音是不等长的，因此d-vector会把语音截成多段，然后取这几段特征的平均值作为最后的speaker embedding。
+
+<div align=center>
+    <img src="zh-cn/img/ch28/p59.png"   /> 
+</div>
+
+
+本节将介绍x-vector方法和思路与d-vector方法的思路类似。x-vector方法由Snyder等2017年提出，并在Kaldi中做了完整的实现。x-vector同样是一种嵌入向量，和d-vector类似，使用说话人标签作为神经网络的分类目标，但是有如下几点独特之处：
+
++ 前几层为TDNN结构，使用了前后若干帧的信息
++ 使用统计池化层对各帧的TDNN输出进行平均
++ 取池化层后面的隐层（通常为2个）的输出作为嵌入向量
+
+<div align=center>
+    <img src="zh-cn/img/ch28/p62.png"   /> 
+</div>
+
+<div align=center>
+    <img src="zh-cn/img/ch28/p60.png"   /> 
+</div>
+
+到了2018 年，出了 x-vector。它会把 每个语音片段通过模型后的输出用一种方式聚合起来，而不是像 d-vector 那样简单的取平均。
+
+x-vector 是d-vector的升级版，它在训练的时候，就考虑了整段声音信号的信息。它会把每一小段的声音信号输出的特征，算一个 mean 和 variance，然后concat起来，再放进一个DNN里去来判断是哪个说话人说的。其他的部分和d-vector一致。
+
+当然，今天我们再来看的时候，会把DNN直接换成RNN就可以了。
+
+以上方法，都是train一个speaker recoganition的模型，然后拿它的特征来做相似度的计算（非 end-to-end模型）。
+
+其相似度计算这部分，也可以直接放进模型里去训练，做成一个end-to-end的模型。
+
+我们的数据集还是和之前的一样，有一堆多个speaker说的话，我们知道每句话是哪个speaker说的。再end-to-end训练的时候，我们会把k段同一个人A说的话放进模型里，得到一个平均之后的特征，然后再从数据集中抽取一段A说的话，作为正样本，抽取一段非A说的话，作为负样本，然后也输入模型得到一个特征。两个特征做相似度的计算，希望正样本下的score越高越好，负样本下的score越低越好。
+
+<div align=center>
+    <img src="zh-cn/img/ch28/p61.png"   /> 
+</div>
+
+一般来说，x-vector方法的系统比i-vector方法的系统相对要好10个百分点，在Interspeech 2016上有一个关于说话人识别未来十年趋势的研讨会，包括Synder在内的很多学者认为，基于嵌入向量的说话人识别方法将逐渐取代i-vector方法。
+
 
 ### 5.静音检测
 
