@@ -40,7 +40,7 @@
 - [x] 30.squeezeformer
 - [x] 23.开源语音识别数据集介绍
 - [x] 24.Kaldi学习
-- [ ] 25.K2学习
+- ~~25.K2学习~~
 - [x] 26.WeNet学习
 - [x] 27.ESPNet学习
 - [x] 28.NeMo学习
