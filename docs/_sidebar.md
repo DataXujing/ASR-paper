@@ -31,6 +31,8 @@
 * [27.WeNet学习](zh-cn/26_wenet.md)
 * [28.ESPNet学习](zh-cn/27_espnet.md)
 * [29.NeMo学习](zh-cn/28_nemo.md)
+* [30.Paraformer](zh-cn/31_paraformer.md)
+
 
 
 <!-- https://github.com/wenet-e2e/speech-recognition-papers -->

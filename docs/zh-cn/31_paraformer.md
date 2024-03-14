@@ -1,0 +1,180 @@
+## Paraformer: Fast and Accurate Parallel Transformer for Non-autoregressive End-to-End Speech Recognition
+
+!> https://arxiv.org/abs/2206.08317
+
+!> https://github.com/alibaba-damo-academy/FunASR
+
+<!-- https://mp.weixin.qq.com/s/EvtK0ExOVAxfOQ0aLmv4xw -->
+
+最近一段时间openai开源了whisper,也出现了各种xxformer的ASR解决方案，比如Conformer,Branchformer,EfficientConformer,Squeezeformer,Zipformer,Paraformer。
+
++ Conformer： 解决语音全局和局部信息的建模。提出的方案是CNN学习局部信息，Transformer学习全局信息，使用夹心饼干的方式结合两者。结果确实比transformer更好了。
++ Branchformer：提出了另一个CNN和Transformer结合的结构，Conformer是串行夹心饼干，它则是并行结合。
++ EfficientConformer：Conformer在深层的时间尺度上下采样提升效率。
++ Squeezeformer：从数据角度证实了时间维度上的冗余，使用U-Net对中间层降采样，从实验角度证明夹心饼干结构是次优。
++ Zipformer：使用了更多种采样率对transformer进行降采样。
++ Paraformer：使用非自回归方式建模。用实验证实了Transformer中的全局信息用token数量和token之间的关系就可以代替。
+
+自回归与非自回归结构如下所示，Transformer模型属于自回归模型，也就是说后面的token的推断是基于前面的token的。不能并行，如果使用非自回归模型的话可以极大提升其速度。
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p1.png"   /> 
+</div>
+
+### Abstract
+
+Transformer最近在ASR领域占据了主导地位。虽然能够产生良好的性能，但它们涉及一个自回归 （AR） 解码器来逐个生成token，这在计算上效率低下。为了加快推理速度，设计了非自回归 （NAR） 方法，例如单步 NAR(single-step NAR)，以实现并行生成。然而，由于输出token内部的独立性假设，单步NAR的性能不如AR模型，尤其是在大规模语料库的情况下。改进单步NAR面临两个挑战：一是准确预测输出token数量，提取隐藏变量;其次，加强输出token之间相互依赖关系的建模。为了应对这两个挑战，我们提出了一种快速准确的并行Transformer，称为Paraformer。这利用基于continuous integrate-and-fire(CIF)的预测器来预测token的数量并生成隐藏变量。然后，glancing language model （GLM） 采样器生成语义嵌入，以增强 NAR 解码器对上下文相互依赖关系进行建模的能力。最后，我们设计了一种策略来生成负样本，用于最小单词错误率训练，以进一步提高性能。使用公共 AISHELL-1、AISHELL-2 基准测试和工业级 20,000 小时任务的实验表明，所提出的 Paraformer 可以达到与最先进的 AR Transformer相当的性能，加速超过 10 倍。 
+
+### 1.引言
+
+在过去几年中，端到端 （E2E） 模型在自动语音识别 （ASR） 任务上的性能已经超过了传统的混合系统。有三种流行的 E2E 方法：CTC[1]、RNN-T[2] 和基于注意力的编码器-解码器 （AED） [3，4]。其中，AED 模型因其卓越的识别准确性而主导了 ASR 的 seq2seq 建模。例如Transformer [4] 和 Conformer [5]。虽然性能很好，但此类 AED 模型中的自动回归 （AR） 解码器需要逐个生成token，因为每个token都以所有先前的token为条件。因此，解码器的计算效率低下，解码时间随输出序列长度线性增加。为了提高效率和加速推理，已经提出了非自回归（NAR）模型来并行生成输出序列[6,7,8]。
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p2.png"   /> 
+</div>
+<p align=center> 图 1：分析三个系统的不同错误类型，在工业 20,000 小时任务上进行评估 </p>
+
+根据迭代持续时间推断的次数，NAR 模型可以分为迭代模型和单步模型。在前者中，A-FMLM 是第一个尝试 [9]，旨在预测以unmasked tokens为条件的不断迭代的masked tokens。由于需要预定义目标token长度，性能会受到影响。 为了解决这个问题，Mask-CTC及其变体建议使用CTC解码来增强解码器输入[10,11,12]。 即便如此，这些迭代的NAR模型需要多次迭代才能获得有竞争力的结果，这限制了实践中的推理速度。 最近，人们提出了几种单步NAR模型来克服这一局限性[13,14,15,16,17]。它们通过消除时间依赖性同时生成输出序列。 虽然单步NAR模型可以显著提高推理速度，但其识别准确率明显不如AR模型，尤其是在大规模语料库上进行评估时。
+
+上面提到的单步 NAR 工作主要集中在如何预测token数量以及准确提取隐藏变量。与通过预测器网络预测token数量的机器翻译相比，由于说话者的语速、沉默和噪音等各种因素，ASR 确实很困难。另一方面，根据我们的调查，与 AR 模型相比，单步 NAR 模型犯了很多替换错误（图 1 中描述为 AR 和普通 NAR）。我们认为，缺乏上下文相互依赖性会导致替换错误增加，特别是由于单步 NAR 中所需的条件独立性假设。除此之外，所有这些 NAR 模型都是在阅读场景中记录的学术基准上探索的。性能尚未在大规模的工业级语料库上进行评估。 因此，本文旨在改进单步NAR模型，使其在大规模语料库上获得与AR模型相当的识别性能。
+
+**这项工作提出了一种快速准确的并联Transformer模型（称为Paraformer），可以解决上述两个挑战。首先，与以前基于CTC的工作不同，我们利用基于CIF[18]的预测器网络来估计目标token数量并生成隐藏变量。对于第二个挑战，我们设计了一个基于GLM 的采样器模块，以增强 NAR 解码器对token相互依赖关系进行建模的能力。这主要受到神经机器翻译工作的启发[19]。 此外，我们还设计了一种包含负样本的策略，通过利用最小单词错误率 （MWER） [20] 训练来提高性能。**
+
+我们在公共 178 小时 AISHELL-1 和 1000 小时 AISHELL-2 基准测试以及工业 20,000 小时普通话语音识别任务上评估 Paraformer。Paraformer 在 AISHELL-1 和 AISHELL-2 上分别获得了 5.2% 和 6.19% 的 CER，这不仅优于其他最近发表的 NAR 模型，而且可与没有外部语言模型的最先进的 AR 转换器相媲美。据我们所知，Paraformer 是第一个能够达到与 AR 转换器相当的识别精度的 NAR 模型，并且在大型语料库上加速了 10 倍。
+
+### 2.方法
+
+#### 2.1 Overview
+
+所提出的Paraformer模型的整体框架如图2所示。 该架构由五个模块组成，分别是**编码器encoder、预测器predictor、采样器sampler、解码器decoder和损失函数loss function**。编码器与AR编码器相同，由多个配备存储器的自注意力(memory equipped self-attention)（SAN-M）和前馈网络（FFN）[21]或Conformer[5]块组成。 预测器用于产生声学嵌入并指导解码。然后，采样器模块根据声学特征嵌入和 char token嵌入生成语义嵌入。解码器类似于 AR 解码器，只是是双向的。它由 SAN-M、FFN 和交叉多头注意力 （MHA） 的多个模块组成。除了交叉熵 （CE） 损失外，还将引导预测变量收敛的平均绝对误差 （MAE） 和 MWER 损失相结合，共同训练系统。
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p3.png"   /> 
+</div>
+<p align=center> 图 2：Paraformer的结构 </p>
+
+
+训练过程：
+
+我们将输入表示为$(𝐗,𝐘)$，其中$X$是包含$T$帧的声学特征，$𝐘$是包含$N$个字符的目标识别文本。编码器将输入序列$X$映射 
+到隐藏表示序列$𝐇$。然后，这些隐藏表示 $𝐇$被馈送到预测器，以预测token数量$N{'}$并产生声学嵌入 
+$𝐄_a$。解码器采用声学嵌入$𝐄_a$和隐藏表示 $𝐇$，生成第一次的目标预测$𝐘^{'}$（不需要梯度的后向传播，代码中是可选的可以后向传播梯度，也可以关掉） 。采样器根据预测$𝐘^{'}$和目标标签$𝐘$之间的距离在声学嵌入 $𝐄_a$和目标字符嵌入 $𝐄_c$之间进行采样 得到语义嵌入$𝐄_s$。 然后，解码器接受语义嵌入 $𝐄_s$和隐藏表示 $𝐇$，以生成最终的第二次预测$𝐘^{''}$（需要梯度的后向传播）最后，对预测$𝐘^{''}$进行采样，为MWER训练生成负候选样本，并在目标token数$N$和预测token数$N^{'}$之间计算MAE。MWER 和 MAE 合并 CE 损失进行联合训练。
+
+推理过程：
+
+采样器模块处于非活动状态，双向并行解码器直接利用声学嵌入$𝐄_a$和隐藏表示 
+$𝐇$，仅$𝐘^{'}$通过一次传递预测即可输出最终预测。尽管解码器在每个训练阶段都向前运行两次，但由于单步解码过程，计算复杂度实际上在推理过程中并没有增加。
+
+#### 2.2 Predictor
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p4.png"   /> 
+</div>
+<p align=center> 图 3：CIF 过程的图示（ $\beta$设置为 1） </p>
+
+predictor由2个卷积层组成，输出的范围为0到1的浮点权重$\alpha$。累积权重$\alpha$来预测token数量，MAE损失指导学习predictor
+
+$$ℒ_ {MAE} = |𝒩-\sum^{T}_ {t=1}\alpha_t|$$
+
+通过CIF（Continuous Integrate-and-Fire）机制生成声学嵌入。CIF是一种柔和的单调对齐，在[18]中被提出作为AED模型的流解决方案。为了产生声学嵌入$𝐄_ a$,CIF累积权重$\alpha$并整合隐藏表示$𝐇$,直到累积的权重达到给定的阈值$\beta$,这表明已经达到了声学边界（图3显示了这一过程的说明），举个例子，$\alpha$从左到右，`0.3+0.5+0.4=1.1>1`,于是fire一个token,$𝐄_ {a1}=0.3\times 𝐇_ 1+0.5\times 𝐇_ 2+0.2\times H_ 3$。由于还剩0.1的值没有用，于是0.1用于下一个token计算。同理，$𝐄_ {a2}=0.1\times 𝐇_ 3+0.6\times 𝐇_ 4+0.3\times H_ 5$，$𝐄_ {a3}=0.1\times 𝐇_ 5+0.9\times 𝐇_ 6$，$𝐄_ {a4}=0.2\times 𝐇_ 7+0.6\times 𝐇_ 8$。共fire了4次，也就是4个$𝐄_a$。
+
+根据[18],在训练过程中，权重$\alpha$按目标长度进行缩放$𝐄_ c$,以便将声学嵌入的数量$𝐄_ a$与目标嵌入的数量相匹配，而推断阶段权重$\alpha$则直接用于生成$𝐄_ a$，用于推理。因此，训练和推理之间可能存在不匹配，导致预测变量的精度下降。由于 NAR 模型比流模型对预测变量的准确性更敏感，因此我们建议使用动态阈值$\beta$而不是预定义的阈值来减少不匹配。动态阈值机制表述为：
+$$\beta=\frac{\sum^{T}_ {t=1}\alpha_t}{\lceil \sum^{T}_ {t=1}\alpha_t \rceil}$$
+
+#### 2.3 Sampler
+
+在普通的单步NAR中，其优化目标可以表述为：
+
+$$ℒ_ {NAT}=\sum^{N}_ {n=1}\log P(y_ n|X;\theta)$$
+
+然而，如前所述，与 AR 模型相比，条件独立性假设会导致性能较差。同时，GLM(glancing language model) 损失定义为：
+$$ℒ_ {GLM}=\sum_ {y^{''}_ n \in \overline{𝔾𝕃𝕄(Y,Y^{'})}}\log p[y^{''}_ {n} | 𝔾𝕃𝕄(Y,Y^{'}),X;\theta]$$
+
+其中$𝔾𝕃𝕄(Y,Y^{'})$表示sampler module在$𝐄_ a$和$𝐄_ c$之间选择token子集,$\overline{𝔾𝕃𝕄(Y,Y^{'})}$表示目标$Y$中剩余的未选择的token子集。
+
+$$𝔾𝕃𝕄(Y,Y^{'})=Sampler(E_s|E_a,E_c,\lceil \lambda d(Y,Y^{'}) \rceil)$$
+
+其中$\lambda$是控制采样率的采样因子。$d(Y,Y^{'})$是采样数。当模型训练不佳时，她会变大，并且应随之训练过程而减少。为此，我们只需要使用汉明距离，定义为：
+$$d(Y,Y^{'})=\sum^{N}_ {n=1}(y_n \neq y^{'}_ {n})$$
+
+总而言之，sampler module 通过将目标嵌入$E_c$ 随机替换$\lambda d(Y,Y^{'}) \rceil$个token到声学嵌入$E_ a$,生成语义嵌入$E_ s$。Parallel decoder被训练为使用语义上下文$𝔾𝕃𝕄(Y,Y^{'})$预测目标token：$\overline{𝔾𝕃𝕄(Y,Y^{'})}$,使模型能够学习输出标记之间的相互依赖关系。
+
+#### 2.4 Loss Function
+
+三种损失函数：CE,MAE和MWER losses。联合训练，如下：
+
+$$ℒ_ {total} = \gamma ℒ_ {CE} + ℒ_ {MAE} + ℒ^{N}_ {werr}(x,y^{\ast})$$
+
+对于MWER，它可以表述为[20]:
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p6.png"   /> 
+</div>
+
+由于使用greedy search decoding ,NAR模型只有一个输出路径，如上所述，我们利用负采样策略，通过在MWER训练期间随机屏蔽top1 score的token来生成多个候选路径。
+
+
+
+
+### 3.实验
+
+#### 3.1 参数
+
+我们在公开可用的 AISHELL-1（178 小时）[26]、AISHELL-2 （1000 小时） 基准 [27] 以及 20,000 小时的工业普通话任务上评估了所提出的方法。后一项任务与 [21，28] 中的大型语料库相同。使用一组约 15 小时的远场数据和一组约 30 小时的通用数据来评估性能。其他配置可以在 [21，28，29] 中找到。 实时率（RTF） 用于测量 GPU （NVIDIA Tesla V100） 上的推理速度。代码开源在FunASR。
+
+
+#### 3.2 AISHELL-1和AISHELL-2任务
+
+AISHELL-1 和 AISHELL-2 评估结果详见表 1。为了与已发表的作品进行公平的比较，RTF在ESPNET上进行了评估[30]。表 1 中的任何实验均未使用外部语言模型 （LM） 或无监督预训练。 对于 AISHELL-1 任务，我们首先训练了一个 AR transformer 作为基线，其配置与 [ 15 ] 中的 AR 基线相匹配。基线的性能在 AR transformer中是最先进的，不包括具有大规模知识迁移的系统，例如 [ 31]，因为我们的目标是架构改进，而不是从更大的数据集中获益。vanilla NAR 与我们提出的模型 Paraformer 具有相同的结构，但没有采样器。可以看出，我们的vanilla NAR超越了最近发表的其他NAR作品， 
+比如改进的CASS-NAT[15]和CTC增强的NAR [12]。 然而，由于输出token之间缺乏上下文依赖性，其性能略逊于 AR 基线。但是，当我们通过 Paraformer 中的采样器模块使用 GLM 增强原版 NAR 时，我们获得了与 AR 模型相当的性能。 虽然 Paraformer 在开发集和测试集上的识别 CER 分别为 4.6% 和 5.2%，但推理速度 （RTF） 比 AR 基线快 12 倍以上。对于 AISHELL-2 任务，模型配置与 AISHELL-1 相同。从表1可以看出，性能提升与AISHELL-1相似。 具体来说，Paraformer 在test_ios任务中实现了 6.19% 的 CER，推理速度提高了 12 倍以上。 据作者所知，这是 NAR 模型在 AISHELL-1 和 AISHELL-2 任务上的最新性能。
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p5.png"   /> 
+</div>
+<p align=center> 表 1：ASR 系统在 AISHELL-1 和 AISHELL-2 任务 （CER%） 上的比较，没有 LM。 AR/NAR表示使用AR或NAR beamsearch, RTF 列的评估批大小为 8， 其他列的批大小为 1）。我们的代码将很快发布 </p>
+
+
+#### 3.3 Industrial 20,000 hour任务
+
+我们进行了大量的实验来评估我们提出的方法，详见表3。动态$\beta$表示第2.2节中详述的动态阈值，而CTC是指具有LM的DFSMN-CTC-sMBR系统[ 32]。RTF在OpenNMT上进行了评估[ 33]。
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p7.png"   /> 
+</div>
+<p align=center> 表 3：三个系统在工业 20,000 小时任务 （CER%） 上的性能 </p>
+
+首先看大小为 41M 的模型，注意力维度为 256 的 AR 基线与 [ 21 ] 相同。我们可以看到与第 3.2 节中提到的现象不同的现象。在这里，我们发现 vanilla NAR的CER与AR模型的CER相差很大。尽管如此，vanilla NAR 的表现仍然优于 CTC，后者做出了类似的条件独立性假设。 当配备 GLM 时，与普通 NAR 相比，Paraformer 在远场和常见任务上的相对改进分别为 13.5% 和 14.6%。当我们进一步添加MWER训练时，准确性略有提高。更重要的是，Paraformer 实现了与 AR 模型相当的性能（相对损失小于 2%），推理速度提高了 10 倍。 我们还评估了 CIF 的动态阈值。从表3可以看出，动态阈值有助于进一步提高精度。与 CIF 中的预定义阈值相比，动态阈值减少了推理和训练之间的不匹配，从而更准确地提取声学嵌入。
+
+在63M的较大模型尺寸上进行评估，所看到的现象与上述现象相似。在这里，Paraformer 在远场和普通任务上的相对改进分别比普通 NAR 高 13.0% 和 11.1%。同样，Paraformer 的精度与 AR 模型相当（相对差异小于 2.8%），再次实现了 10 倍的加速。如果我们将 Paraformer-63M 与 AR transformer-41M 进行比较，尽管 Paraformer 模型尺寸更大，但其推理速度有所提高（RTF 从 0.067 提高到 0.009）。因此，Paraformer-63M 在远场任务上可以比 AR transformer-41M 实现 6.0% 的相对改进，同时推理速度提高了 7.4 倍。这表明 Paraformer 可以通过增加模型大小来实现卓越的性能，同时仍然保持比 AR transformer 更快的推理速度。
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p8.png"   /> 
+</div>
+<p align=center> 表2：抽样率（CER%）的评估 </p>
+
+最后，我们评估采样器中的采样因子 $\lambda$，如表2所示。正如预期的那样，由于目标提供了更好的上下文，识别准确性会随着 
+$\lambda$增加而提高。但是，当采样因子过大时，会导致训练和推理之间的不匹配，我们用训练目标解码两次，在没有目标的情况下解码一次。尽管如此，Paraformer 的性能在$\lambda$在 0.5 到 1.0 的范围内是稳健的。
+
+
+#### 3.4 讨论
+
+从上述实验中，我们注意到，与AR模型相比，vanilla  NAR在AISHELL-1和AISHELL-2任务上的性能衰减较小，但对于大规模的工业级语料库而言，性能衰减要大得多。与来自阅读语料库的学术基准（例如AISHELL-1和-2）相比，工业级数据集反映了更复杂的场景，因此在评估NAR模型方面更可靠。据我们所知，这是第一个在大规模工业级语料库任务上探索NAR模型的工作。
+
+上面的实验表明，与普通的 NAR 相比，Paraformer 获得了超过 11% 的显着改进，而 Paraformer 的性能与训练有素的 AR transformer 相似。
+
+为了了解原因，我们进行了进一步的分析。首先，我们确定了 AR、vanilla NAR 和 Paraformer 模型在 20,000 小时任务中的误差类型统计数据，如图 1 所示。我们统计了 Far-field 和 Common 上分别插入、删除和替换错误类型的总数，并按目标token总数进行归一化。图1的纵轴是误差类型的比率。 我们可以看到，与AR系统性能相比，vanilla  NAR中的插入错误略有增加，而删除错误则略有减少。这表明在动态阈值的帮助下，预测变量的准确性更高。然而，替换误差急剧上升，这解释了它们之间在性能上的巨大差距。我们认为这是由vanilla  NAR模型中的条件独立性假设引起的。与原版NAR相比，Paraformer的替换误差显著降低，是其性能提升的主要原因。我们认为替代率的下降是因为增强的 GLM 使 NAR 模型能够更好地学习输出代币之间的相互依赖关系。 然而，与AR相比，替换错误的数量仍然存在小的差距，导致识别准确率略有不同。我们认为，究其原因，是因为与GLM相比，AR的beam search在语言模型中可以发挥重要作用。为了消除这个剩余的性能差距，**我们的目标是在未来的工作中将Paraformer与外部语言模型相结合**。
+
+
+### 4.结论
+
+本文提出了一种单步NAR模型Paraformer，以提高NAR端到端ASR系统的性能。我们首先利用基于CIF的预测器来预测token数量并生成隐藏变量。我们使用动态阈值而不是预定义阈值改进了 CIF，以减少推理和训练之间的不匹配。然后，我们设计了一个基于GLM的采样器模块来生成语义嵌入，以增强NAR解码器对上下文相互依赖性进行建模的能力。最后，我们设计了一种生成负样本的策略，以便进行最小的单词错误率训练，以进一步提高性能。 在公共AISHELL-1（178小时）和AISHELL-2（1000小时）基准测试以及工业级20,000小时语料库上进行的实验表明，所提出的Paraformer模型可以达到与最先进的AR变压器相当的性能，加速超过10倍。
+
+------
+
+## FunASR
+
+### 1.FunASR训练Paraformer
+
+
+
+### 2.FunASR部署流式或非流式加热词和语言模型的Paraformer
