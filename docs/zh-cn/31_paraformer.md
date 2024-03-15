@@ -6,7 +6,7 @@
 
 <!-- https://mp.weixin.qq.com/s/EvtK0ExOVAxfOQ0aLmv4xw -->
 
-最近一段时间openai开源了whisper,也出现了各种xxformer的ASR解决方案，比如Conformer,Branchformer,EfficientConformer,Squeezeformer,Zipformer,Paraformer。
+最近一段时间openai开源了whisper,也出现了各种xxformer的ASR解决方案，比如Conformer,Branchformer,EfficientConformer,Squeezeformer,Zipformer,Paraformer。 Paraformer是2022-2023年阿里开源的非自回归的语音识别模型，并开源了工业级的语音识别训练和部署库FunASR。
 
 + Conformer： 解决语音全局和局部信息的建模。提出的方案是CNN学习局部信息，Transformer学习全局信息，使用夹心饼干的方式结合两者。结果确实比transformer更好了。
 + Branchformer：提出了另一个CNN和Transformer结合的结构，Conformer是串行夹心饼干，它则是并行结合。
@@ -114,8 +114,6 @@ $$ℒ_ {total} = \gamma ℒ_ {CE} + ℒ_ {MAE} + ℒ^{N}_ {werr}(x,y^{\ast})$$
 由于使用greedy search decoding ,NAR模型只有一个输出路径，如上所述，我们利用负采样策略，通过在MWER训练期间随机屏蔽top1 score的token来生成多个候选路径。
 
 
-
-
 ### 3.实验
 
 #### 3.1 参数
@@ -173,8 +171,318 @@ $\lambda$增加而提高。但是，当采样因子过大时，会导致训练�
 
 ## FunASR
 
-### 1.FunASR训练Paraformer
+### 1.FunASR训练Paraformer，静音检测模型，语言模型，热词增强模型和标点预测模型
 
-
+TODO
 
 ### 2.FunASR部署流式或非流式加热词和语言模型的Paraformer
+
+这里以FunASR离线文件转写服务开发为例，测试如何调用离线的预训练Paraformer和热词增强实现离线语音识别服务。
+
+<div align=center>
+    <img src="zh-cn/img/ch31/offline_structure.jpg"   /> 
+</div>
+
++ 下载Docker镜像
+
+```shell
+sudo docker pull \
+  registry.cn-hangzhou.aliyuncs.com/funasr_repo/funasr:funasr-runtime-sdk-cpu-0.4.4
+```
+
+实例化容器
+
+```shell
+sudo docker run -p 10095:10095 -p 10096:10096 -p 10097:10097 -it --privileged=true \
+  registry.cn-hangzhou.aliyuncs.com/funasr_repo/funasr:funasr-runtime-sdk-cpu-0.4.4
+```
+
+更新安装funasr
+
+```shell
+pip install -U funasr
+```
+
++ 准备Paraformer模型，语言模型和热词模型或热词词表
+
+下载预训练的模型
+
+```
+https://github.com/alibaba-damo-academy/FunASR/tree/main/model_zoo
+
+https://www.modelscope.cn/models/damo/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch/summary
+```
+
+构建热词词表
+
+FunASR支持训练神经网络热词模型，也支持热词词表。下面构建热词词表
+
+```
+寻腔 100
+进境 100
+寻腔进境 100
+到达部位 100
+回肠末端 100
+回盲部 100
+退镜观察 100
+绒毛状态 100
+结构规则 100
+充血水肿 100
+溃疡 100
+肿物 100
+黏膜状态 100
+光滑 100
+糜烂 100
+清晰 100
+```
+
+
+
+copy到容器
+
+```
+sudo docker cp funasr_model/ bc0e3f4af6b1:/workspace
+```
+
+
+pytorch导出onnx
+
+```
+funasr-export ++model=/workspace/funasr_model/ ++export-dir=./models ++type=onnx ++quantize=true
+```
+
+
+训练语言模型
+
+```
+https://github.com/alibaba-damo-academy/FunASR/blob/main/runtime/docs/lm_train_tutorial.md
+```
+
+
+
++ 启动funasr-wss-server服务
+
+启动 funasr-wss-server服务程序：
+
+```shell
+cd FunASR/runtime
+nohup bash run_server.sh \
+  --download-model-dir /workspace/models \  # 在魔塔下载的模型文件
+  --vad-dir damo/speech_fsmn_vad_zh-cn-16k-common-onnx \
+  --model-dir damo/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-onnx  \
+  --punc-dir damo/punc_ct-transformer_cn-en-common-vocab471067-large-onnx \
+  --lm-dir damo/speech_ngram_lm_zh-cn-ai-wesp-fst \
+  --itn-dir thuduj12/fst_itn_zh \
+  --hotword /workspace/models/hotwords.txt > log.txt 2>&1 &
+
+# 如果您想关闭ssl，增加参数：--certfile 0
+# 如果您想使用时间戳或者nn热词模型进行部署，请设置--model-dir为对应模型：
+#   damo/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-onnx（时间戳）
+#   damo/speech_paraformer-large-contextual_asr_nat-zh-cn-16k-common-vocab8404-onnx（nn热词）
+# 如果您想在服务端加载热词，请在宿主机文件./funasr-runtime-resources/models/hotwords.txt配置热词（docker映射地址为/workspace/models/hotwords.txt）:
+#   每行一个热词，格式(热词 权重)：阿里巴巴 20（注：热词理论上无限制，但为了兼顾性能和效果，建议热词长度不超过10，个数不超过1k，权重1~100）
+
+
+```
+
+参数说明：
+
+```shell
+--download-model-dir 模型下载地址，通过设置model ID从Modelscope下载模型
+--model-dir  modelscope model ID 或者 本地模型路径
+--vad-dir  modelscope model ID 或者 本地模型路径
+--punc-dir  modelscope model ID 或者 本地模型路径
+--lm-dir modelscope model ID 或者 本地模型路径
+--itn-dir modelscope model ID 或者 本地模型路径
+--port  服务端监听的端口号，默认为 10095
+--decoder-thread-num  服务端线程池个数(支持的最大并发路数)，
+                      脚本会根据服务器线程数自动配置decoder-thread-num、io-thread-num
+--io-thread-num  服务端启动的IO线程数
+--model-thread-num  每路识别的内部线程数(控制ONNX模型的并行)，默认为 1，
+                    其中建议 decoder-thread-num*model-thread-num 等于总线程数
+--certfile  ssl的证书文件，默认为：../../../ssl_key/server.crt，如果需要关闭ssl，参数设置为0
+--keyfile   ssl的密钥文件，默认为：../../../ssl_key/server.key
+--hotword   热词文件路径，每行一个热词，格式：热词 权重(例如:阿里巴巴 20)，
+            如果客户端提供热词，则与客户端提供的热词合并一起使用，服务端热词全局生效，客户端热词只针对对应客户端生效。
+
+```
+
+```shell
+export PYTHONPATH=/workspace/FunASR
+
+./run_server.sh --certfile 0\
+  --model-dir /workspace/funasr_model  \
+  --hotword /workspace/funasr_model/hotwords.txt 
+
+```
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p9.png"   /> 
+</div>
+
+停止服务
+
+```
+ps -x | grep funasr-wss-server
+kill -9 PID
+
+```
+
+
++ html客户端
+
+chrome浏览器打开：`funasr_samples\samples\html\static\index.html`，注意修改`main.js`使其支持`ws`和`http`。
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p10.png"   /> 
+</div>
+
+
++ 客户端测试
+
+```
+python funasr_wss_client.py --host "10.10.15.106" --port 10095 --ssl 0 --mode offline --audio_in "./long.wav" --output_dir "./results"
+```
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p11.png"   /> 
+</div>
+
+```
+demo    富士康在印度工厂出现大规模感染，目前工厂产量已下降超50%。  [[520,700],[700,820],[820,1100],[1100,1320],[1320,1540],[1540,1860],[1860,2020],[2020,2280],[2280,2420],[2420,2700],[2700,2920],[2920,3080],[3080,3360],[3360,3560],[3560,4020],[4020,4200],[4200,4460],[4460,4620],[4620,4880],[4880,5040],[5040,5280],[5280,5500],[5500,5680],[5680,5920],[5920,6240],[6240,6651],[6651,7062],[7062,7475]]
+```
+
+
+在服务器上完成FunASR服务部署以后，可以通过如下的步骤来测试和使用离线文件转写服务。 目前分别支持以下几种编程语言客户端
+
++ [Python](https://github.com/alibaba-damo-academy/FunASR/blob/main/runtime/docs/SDK_advanced_guide_offline_zh.md#python-client)
++ [CPP](https://github.com/alibaba-damo-academy/FunASR/blob/main/runtime/docs/SDK_advanced_guide_offline_zh.md#cpp-client)
++ [html网页](https://github.com/alibaba-damo-academy/FunASR/blob/main/runtime/docs/SDK_advanced_guide_offline_zh.md#Html%E7%BD%91%E9%A1%B5%E7%89%88)
++ [Java](https://github.com/alibaba-damo-academy/FunASR/blob/main/runtime/docs/SDK_advanced_guide_offline_zh.md#Java-client)
+
+以上我们尝试了基于html和python的websocket的调用方式，我们修改简化了python调用，其代码如下：
+
+```python
+'''
+徐静
+2024-03-15
+
+'''
+import os
+import time
+import websockets, ssl
+import wave
+import asyncio
+import json
+
+async def record_from_scp(chunk_begin,wav_path):
+    # global voices
+    # is_finished = False
+    chunk_size=[5, 10, 5]
+    chunk_interval = 10
+    use_itn=True
+    mode = "2pass"  # "offline, online, 2pass"
+    # wavs = "xxx.wav"
+
+    # wav_path = "xxx.wav"
+    with wave.open(wav_path, "rb") as wav_file:
+        params = wav_file.getparams()
+        sample_rate = wav_file.getframerate()
+        frames = wav_file.readframes(wav_file.getnframes())
+        audio_bytes = bytes(frames)
+
+    stride = int(60 * chunk_size[1] / chunk_interval / 1000 * sample_rate * 2)
+    chunk_num = (len(audio_bytes) - 1) // stride + 1
+
+
+    # send first time
+    message = json.dumps({"mode": mode, "chunk_size": chunk_size, "chunk_interval": chunk_interval, "audio_fs":sample_rate,
+                          "wav_name": "demo", "wav_format": "pcm", "is_speaking": True, "hotwords":"", "itn": use_itn})
+
+    await websocket.send(message)
+
+    is_speaking = True
+    for i in range(chunk_num):
+
+        beg = i * stride
+        data = audio_bytes[beg:beg + stride]
+        message = data
+        #voices.put(message)
+        await websocket.send(message)
+        if i == chunk_num - 1:
+            is_speaking = False
+            message = json.dumps({"is_speaking": is_speaking})
+            #voices.put(message)
+            await websocket.send(message)
+
+        sleep_duration = 0.001
+        await asyncio.sleep(sleep_duration)
+
+async def message(id):
+    while True:
+        try:
+            meg = await websocket.recv()
+            meg = json.loads(meg)
+            wav_name = meg.get("wav_name", "demo")
+            text = meg["text"]
+
+            offline_msg_done = meg.get("is_final", True)
+
+            # print(meg)
+            # print(text)
+
+            offline_msg_done = True
+
+            await websocket.close()
+        except Exception as e:
+            # print("Exce: ",e)
+            # exit(0)
+            break
+
+    return text
+
+async def ws_client(id,wav_path):
+    global websocket,offline_msg_done
+
+    offline_msg_done=False
+    uri = "ws://{}:{}".format("10.10.15.106", 10095)
+    ssl_context = None
+    print("connect to", uri)
+
+    async with websockets.connect(uri, subprotocols=["binary"], ping_interval=None, ssl=ssl_context) as websocket:
+        task1 = asyncio.create_task(record_from_scp(id,wav_path))
+        task2 = asyncio.create_task(message(str(id))) #processid+fileid
+        return await asyncio.gather(task1, task2)
+
+if __name__ == "__main__":
+
+    loop =  asyncio.get_event_loop()
+    task = loop.create_task(ws_client(0,"./long.wav"))
+    loop.run_until_complete(task)
+    loop.close()
+
+    print(task.result()[1])
+
+```
+
+
+执行上述代码的调用输出结果如下:
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p12.png"   /> 
+</div>
+
+
++ Gradio网页版本测试
+
+我们将FunASR的调用集成到gradio中，并且和我们的任务型对话机器人进行关联，实现类似于微信的发送语音或文本实现和对话机器人交互的目的。
+
+!> gradio实现离线语音识别
+
+
+
+
+
+!> gradio实现离线语音识别+任务型对话机器人关联
+
+
