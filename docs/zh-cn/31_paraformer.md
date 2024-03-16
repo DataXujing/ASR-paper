@@ -479,10 +479,353 @@ if __name__ == "__main__":
 
 !> gradio实现离线语音识别
 
+我们实现了基于gradio的调用
+
+<div align=center>
+    <img src="zh-cn/img/ch31/funasr_gradio1.png"   /> 
+</div>
+
+其代码如下：
+
+```python
+# -*- encoding: utf-8 -*-
+import os
+import time
+import websockets, ssl
+import wave
+import asyncio
+import json
+
+import gradio as gr
+import numpy as np
+import uuid
+from scipy.io import wavfile
+# from scipy.signal import resample
+import librosa
+import soundfile as sf
+
+async def record_from_scp(chunk_begin,wav_path):
+    # global voices
+    # is_finished = False
+    chunk_size=[5, 10, 5]
+    chunk_interval = 10
+    use_itn=True
+    mode = "2pass"  # "offline, online, 2pass"
+    # wav_path = "xxx.wav"
+    with wave.open(wav_path, "rb") as wav_file:
+        params = wav_file.getparams()
+        sample_rate = wav_file.getframerate()
+        frames = wav_file.readframes(wav_file.getnframes())
+        audio_bytes = bytes(frames)
+
+    stride = int(60 * chunk_size[1] / chunk_interval / 1000 * sample_rate * 2)
+    chunk_num = (len(audio_bytes) - 1) // stride + 1
 
 
+    # send first time
+    message = json.dumps({"mode": mode, "chunk_size": chunk_size, "chunk_interval": chunk_interval, "audio_fs":sample_rate,
+                          "wav_name": "demo", "wav_format": "pcm", "is_speaking": True, "hotwords":"", "itn": use_itn})
+
+    await websocket.send(message)
+
+    is_speaking = True
+    for i in range(chunk_num):
+
+        beg = i * stride
+        data = audio_bytes[beg:beg + stride]
+        message = data
+        #voices.put(message)
+        await websocket.send(message)
+        if i == chunk_num - 1:
+            is_speaking = False
+            message = json.dumps({"is_speaking": is_speaking})
+            #voices.put(message)
+            await websocket.send(message)
+
+        sleep_duration = 0.001
+        await asyncio.sleep(sleep_duration)
+
+
+
+async def message(id):
+    while True:
+        try:
+            meg = await websocket.recv()
+            meg = json.loads(meg)
+            wav_name = meg.get("wav_name", "demo")
+            text = meg["text"]
+
+            offline_msg_done = meg.get("is_final", True)
+            offline_msg_done = True
+
+            await websocket.close()
+        except Exception as e:
+            break
+
+    return text
+
+
+async def ws_client(id,wav_path):
+    global websocket,offline_msg_done
+
+    offline_msg_done=False
+    uri = "ws://{}:{}".format("10.10.15.106", 10095)
+    ssl_context = None
+    print("connect to", uri)
+
+    async with websockets.connect(uri, subprotocols=["binary"], ping_interval=None, ssl=ssl_context) as websocket:
+        task1 = asyncio.create_task(record_from_scp(id,wav_path))
+        task2 = asyncio.create_task(message(str(id))) #processid+fileid
+        return await asyncio.gather(task1, task2)
+
+
+
+def recognition(audio):
+    sr, y = audio
+    print(sr)
+
+    audio_signal = y
+    save_name = os.path.join("./audio",str(uuid.uuid1()).replace("-","_")+".wav")
+    wavfile.write(save_name, sr, audio_signal)
+
+    # 重采样音频
+    if sr != 16000:
+        rc_sig,sr = sf.read(save_name)
+        audio_signal_16k = librosa.resample(rc_sig,sr,16000)
+        sf.write(save_name,audio_signal_16k,16000)
+
+    # loop =  asyncio.get_event_loop()
+    new_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(new_loop)
+    task = new_loop.create_task(ws_client(0,save_name))
+    new_loop.run_until_complete(task)
+    new_loop.close()
+    # print(preds)
+    preds = task.result()[1]
+    return preds
+
+text = "<h3>基于Paraformer和热词的语音识别 | Medcare Test</h3>"
+# iface = gr.Interface(recognition, inputs="mic", outputs="text",description=text)
+# iface = gr.Interface(recognition, inputs=gr.Audio(source="microphone", type="filepath"), outputs="text",description=text)
+
+iface = gr.Interface(recognition, inputs=gr.Audio(sources=["microphone"],format="wav"), outputs="text",description=text)
+
+if __name__ == "__main__":
+    iface.launch(server_name="0.0.0.0",server_port=8089)
+
+```
 
 
 !> gradio实现离线语音识别+任务型对话机器人关联
 
+我们结合任务型对话机器人，实现了基于gradio的语音识别与任务型对话机器人的交互
 
+
+<div align=center>
+    <img src="zh-cn/img/ch31/funasr_gradio2.png"   /> 
+</div>
+
+其代码如下：
+
+```python
+
+
+"""
+徐静
+2023003-16
+"""
+import os
+import time
+import websockets, ssl
+import wave
+import asyncio
+import json
+
+import gradio as gr
+import numpy as np
+import uuid
+from scipy.io import wavfile
+# from scipy.signal import resample
+import librosa
+import soundfile as sf
+
+# import random
+import uuid
+import requests
+
+global user_id
+
+async def record_from_scp(chunk_begin,wav_path):
+    # global voices
+    # is_finished = False
+    chunk_size=[5, 10, 5]
+    chunk_interval = 10
+    use_itn=True
+    mode = "2pass"  # "offline, online, 2pass"
+    # wav_path = "xxx.wav"
+    with wave.open(wav_path, "rb") as wav_file:
+        params = wav_file.getparams()
+        sample_rate = wav_file.getframerate()
+        frames = wav_file.readframes(wav_file.getnframes())
+        audio_bytes = bytes(frames)
+
+    stride = int(60 * chunk_size[1] / chunk_interval / 1000 * sample_rate * 2)
+    chunk_num = (len(audio_bytes) - 1) // stride + 1
+
+
+    # send first time
+    message = json.dumps({"mode": mode, "chunk_size": chunk_size, "chunk_interval": chunk_interval, "audio_fs":sample_rate,
+                          "wav_name": "demo", "wav_format": "pcm", "is_speaking": True, "hotwords":"", "itn": use_itn})
+
+    await websocket.send(message)
+
+    is_speaking = True
+    for i in range(chunk_num):
+
+        beg = i * stride
+        data = audio_bytes[beg:beg + stride]
+        message = data
+        #voices.put(message)
+        await websocket.send(message)
+        if i == chunk_num - 1:
+            is_speaking = False
+            message = json.dumps({"is_speaking": is_speaking})
+            #voices.put(message)
+            await websocket.send(message)
+
+        sleep_duration = 0.001
+        await asyncio.sleep(sleep_duration)
+
+
+
+async def message(id):
+    while True:
+        try:
+            meg = await websocket.recv()
+            meg = json.loads(meg)
+            wav_name = meg.get("wav_name", "demo")
+            text = meg["text"]
+
+            offline_msg_done = meg.get("is_final", True)
+            offline_msg_done = True
+
+            await websocket.close()
+        except Exception as e:
+            break
+
+    return text
+
+
+async def ws_client(id,wav_path):
+    global websocket,offline_msg_done
+
+    offline_msg_done=False
+    uri = "ws://{}:{}".format("10.10.15.106", 10095)
+    ssl_context = None
+    print("connect to", uri)
+
+    async with websockets.connect(uri, subprotocols=["binary"], ping_interval=None, ssl=ssl_context) as websocket:
+        task1 = asyncio.create_task(record_from_scp(id,wav_path))
+        task2 = asyncio.create_task(message(str(id))) #processid+fileid
+        return await asyncio.gather(task1, task2)
+
+# 调用Rasa
+def post(url, data=None):
+    data = json.dumps(data, ensure_ascii=False)
+    data = data.encode(encoding="utf-8")
+    r = requests.post(url=url, data=data)
+    # r = json.loads(r.text,encoding="gbk")
+    r = json.loads(r.text,encoding="utf-8")
+    return r
+
+
+def get_robot(user_id, input):
+    # sender = secrets.token_urlsafe(16)
+    url = "http://10.10.15.106:5005/webhooks/rest/webhook"
+    data = {"sender": user_id,"message": input}
+    output = post(url, data)
+    return output[0]["text"]
+
+
+
+#gradio chat demo
+# my_theme = gr.Theme.from_hub("gradio/seafoam")
+with gr.Blocks() as demo:
+
+    user_id = str(uuid.uuid1()).replace("-","_")
+    # text = "<h3>基于Paraformer和热词的语音识别 | Medcare Test</h3>"
+    gr.Markdown(
+        f"""
+        ## 语音识别+任务型对话机器人
+        ### Paraformer+RASA
+        """)
+
+    with gr.Row():
+        with gr.Column(scale=4):
+            chatbot = gr.Chatbot(render_markdown=False, label="Medcare 智能报告",
+                                bubble_full_width=False,
+                                avatar_images=("./static/doctor.png", "./static/robot.png",), height=600) # height=800,
+        
+        with gr.Column(scale=1):
+            msg = gr.Textbox(show_label=False,placeholder="请输入异常描述...",container=False)
+            audi = gr.Audio(sources=["microphone"],format="wav")
+
+            with gr.Row():  # 这个row没有作用？
+                submit = gr.Button(value="提交",icon="./static/submit.png")
+                clear = gr.ClearButton([msg, chatbot],value="清除",icon="./static/clear.png")
+                new_user = gr.Button(value="新建用户",icon="./static/人.png")
+
+    # 槽函数          
+    def recognition(audio,chat_history):
+        sr, y = audio
+        print(sr)
+
+        audio_signal = y
+        save_name = os.path.join("./audio",str(uuid.uuid1()).replace("-","_")+".wav")
+        wavfile.write(save_name, sr, audio_signal)
+
+        # 重采样音频
+        if sr != 16000:
+            rc_sig,sr = sf.read(save_name)
+            audio_signal_16k = librosa.resample(rc_sig,sr,16000)
+            sf.write(save_name,audio_signal_16k,16000)
+
+        # loop =  asyncio.get_event_loop()
+        new_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(new_loop)
+        task = new_loop.create_task(ws_client(0,save_name))
+        new_loop.run_until_complete(task)
+        new_loop.close()
+        # print(preds)
+        preds = task.result()[1]
+
+        # bot_message = random.choice(["How are you?", "I love you", "I'm very hungry"])
+        bot_message = get_robot(user_id,preds)
+        chat_history.append((preds, bot_message))
+        return chat_history
+
+    def respond(message, chat_history):
+        # bot_message = random.choice(["How are you?", "I love you", "I'm very hungry"])
+        bot_message = get_robot(user_id,message)
+        chat_history.append((message, bot_message))
+        # time.sleep(1)
+        return "", chat_history
+    
+    def create_use():
+        user_id = str(uuid.uuid1()).replace("-","_")
+        gr.Info(f"用户切换为： {user_id}")
+
+        
+    msg.submit(respond, [msg, chatbot], [msg, chatbot])
+    # audi.submit(recognition, [msg, chatbot], [chatbot])
+    submit.click(fn=recognition, inputs=[audi,chatbot], outputs=[chatbot])
+    new_user.click(fn=create_use)
+
+
+
+if __name__ == "__main__":
+    demo.launch(server_name="0.0.0.0",server_port=8089)
+
+```
+
+下一步我们将对基于FunASR的Paraformer语音识别加热词增强加语言模型的方式进行更广泛和细致的测试！
