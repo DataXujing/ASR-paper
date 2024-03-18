@@ -254,10 +254,230 @@ funasr-export ++model=/workspace/funasr_model/ ++export-dir=./models ++type=onnx
 
 训练语言模型
 
-```
+<!-- ```
+https://zhuanlan.zhihu.com/p/465801692
 https://github.com/alibaba-damo-academy/FunASR/blob/main/runtime/docs/lm_train_tutorial.md
+``` -->
+
+**>>>安装srilm**
+
+SRILM是一个构建和应用统计语言模型的开源工具包，主要用于语音识别，统计标注和切分，以及机器翻译，可运行在UNIX及Windows平台上,SRILM的主要目标是支持语言模型的估计和评测。
+
+srilm安装包下载：
+
+```
+#百度云盘
+https://link.zhihu.com/?target=https%3A//pan.baidu.com/s/18T474NLSqlBL_xhMKEivnA
+
+#提取码
+
+adsl
 ```
 
+TCL安装包下载：
+
+```
+#百度云盘
+https://link.zhihu.com/?target=https%3A//pan.baidu.com/s/1E-0E_IrY5rLnfKAepoY5BA
+#提取码
+adsl
+```
+
+在此，大家肯定会疑问SRILM工具包的安装，为什么还要放一个TCL 的压缩包，这是因为我门SRILM的安装需要依赖在TCL工具上（脚本解释工具），因此在安装过程中需要先安装TCL，再安装SRILM。
+
+TCL安装：
+
+解压：
+
+```shell
+tar -xf tcl8.7a5-src.tar.gz
+```
+
+然后进入解压后的目录，进入unix目录。执行命令 ：
+
+```shell
+./configure
+
+```
+
+打开Makefile文件，将其中的`/usr/local` 替换成 `个人目录/tcl` (以`/workspace/tcl`为例)。替换完成后执行命令：
+
+```shell
+make
+#（root权限可以直接运行命令，过程中会出现很多日志，等待运行完。）
+
+```
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p13.png"   /> 
+</div>
+
+运行完成并出现上图所示内容，执行命令：
+
+```shell
+make install
+```
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p14.png"   /> 
+</div>
+
+出现上图所示即为成功，`/workspace/tcl` 目录如下图所示：
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p15.png"   /> 
+</div>
+
+SRILM安装：
+
+在`/workspace/`目录下 创建一个srilm的文件夹，在该文件夹下解压SRILM的压缩包。
+
+```shell
+tar -xf srilm-1.7.1.tar.gz
+```
+如图所示:
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p16.png"   /> 
+</div>
+
+打开Makefile文件，修改参数：
+
+打开Makefile文件，修改参数：
+
+第七行：
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p17.png"   /> 
+</div>
+
+修改成：
+
+```
+SRILM = $(PWD)
+```
+
+第十三行：
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p18.png"   /> 
+</div>
+
+修改成：
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p19.png"   /> 
+</div>
+
+进入common文件夹，如下所示：
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p20.png"   /> 
+</div>
+
+找到上述第十三行修改的文件名Makefile.machine.i686-m64 并打开：
+
+该文件第五十四行：
+
+```
+NO_TCL = 1
+```
+
+修改成：
+
+```
+NO_TCL = X
+```
+
+回到srilm目录下：执行命令：
+
+```shell
+make World 
+#（接着等待…）
+
+```
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p21.png"   /> 
+</div>
+
+
+显示上图即编译成功，进行测试：
+
+环境变量：
+
+```
+export PATH=/workspace/srilm/bin/:/workspace/srilm/bin:$PATH
+```
+
+测试命令：
+
+```
+make test
+
+```
+
+
+**>>>准备训练数据集**
+
+```
+# 下载: 示例训练语料text、lexicon 和 am建模单元units.txt
+wget https://isv-data.oss-cn-hangzhou.aliyuncs.com/ics/MaaS/ASR/requirements/lm.tar.gz
+# 如果是匹配8k的am模型，使用 https://isv-data.oss-cn-hangzhou.aliyuncs.com/ics/MaaS/ASR/requirements/lm_8358.tar.gz
+tar -zxvf lm.tar.gz
+```
+
+解压后，按照格式增加`text`中的数据，比如:
+
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p22.png"   /> 
+</div>
+
+
+**>>>训练arpa**
+
+修改`runtime/tools/fst/train_lms.sh`中的`ngram-count`的路径：
+
+```shell
+#第22行修改为：
+/workspace/srilm/bin/i686-m64/ngram-count
+```
+
+训练模型：
+
+```shell
+# make sure that srilm is installed
+# the format of the text should be:
+# BAC009S0002W0122 而 对 楼市 成交 抑制 作用 最 大 的 限 购
+# BAC009S0002W0123 也 成为 地方 政府 的 眼中 钉
+
+bash fst/train_lms.sh
+```
+
+
+**>>>生成lexicon**
+
+```shell
+python3 fst/generate_lexicon.py lm/corpus.dict lm/lexicon.txt lm/lexicon.out
+```
+
+**>>>编译TLG.fst**
+
+编译TLG需要依赖fst的环境
+
+```
+# Compile the lexicon and token FSTs
+fst/compile_dict_token.sh  lm lm/tmp lm/lang
+
+# Compile the language-model FST and the final decoding graph TLG.fst
+fst/make_decode_graph.sh lm lm/lang || exit 1;
+
+# Collect resource files required for decoding
+fst/collect_resource_file.sh lm lm/resource
+
+#编译后的模型资源位于 lm/resource
+```
 
 
 + 启动funasr-wss-server服务
@@ -319,6 +539,17 @@ export PYTHONPATH=/workspace/FunASR
 <div align=center>
     <img src="zh-cn/img/ch31/p9.png"   /> 
 </div>
+
+加载自己训练的lm
+```shell
+export PYTHONPATH=/workspace/FunASR
+
+./run_server.sh --certfile 0\
+  --model-dir /workspace/funasr_model  \
+  --hotword /workspace/funasr_model/hotwords.txt \
+  --lm-dir /workspace/FunASR/runtime/tools/lm/resource
+
+```
 
 停止服务
 
