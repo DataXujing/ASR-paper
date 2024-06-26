@@ -32,6 +32,8 @@
 * [28.ESPNet学习](zh-cn/27_espnet.md)
 * [29.NeMo学习](zh-cn/28_nemo.md)
 * [30.Paraformer](zh-cn/31_paraformer.md)
+* [31.Whisper](zh-cn/32_whisper.md)
+
 
 
 
