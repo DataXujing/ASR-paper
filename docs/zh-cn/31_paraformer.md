@@ -5,6 +5,7 @@
 !> https://github.com/alibaba-damo-academy/FunASR
 
 <!-- https://mp.weixin.qq.com/s/EvtK0ExOVAxfOQ0aLmv4xw -->
+<!-- https://mp.weixin.qq.com/s/xQ87isj5_wxWiQs4qUXtVw -->
 
 最近一段时间openai开源了whisper,也出现了各种xxformer的ASR解决方案，比如Conformer,Branchformer,EfficientConformer,Squeezeformer,Zipformer,Paraformer。 Paraformer是2022-2023年阿里开源的非自回归的语音识别模型，并开源了工业级的语音识别训练和部署库FunASR。
 
@@ -173,7 +174,354 @@ $\lambda$增加而提高。但是，当采样因子过大时，会导致训练�
 
 ### 1.FunASR训练Paraformer，静音检测模型，语言模型，热词增强模型和标点预测模型
 
+> 这一部分我们将基于自己标注的数据微调Paraformer声学模型，并基于标注数据训练语言模型，并添加热词，关于语言模型的训练以及热词的添加，已经在下一节中做了详细的介绍，本节主要介绍训练环境的搭建，训练数据的构建,以及Paraformer模型的微调训练。
+
+#### 1. 环境搭建
+
++ 需要的基础环境
+
+```shell
+python>=3.8
+torch>=1.13
+torchaudio
+```
+
++ 安装funasr
+
+```shell
+git clone https://github.com/alibaba/FunASR.git && cd FunASR
+pip3 install -e ./
+```
+
++ 安装modelscope 或 huggingface_hub（下载预训练模型用的）(非必须的)
+
+```
+pip install modelscope huggingface_hub
+```
+
++ 下载预训练的模型
+
+[ModelZoo](https://github.com/modelscope/FunASR/tree/main/model_zoo)
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p23.png"   /> 
+</div>
+
+
+#### 2. 训练数据构建
+
++ 最终需要的数据是jsonl格式的，如下所示 (`train.jsonl`)：
+
+```json
+{"key": "BAC009S0764W0121", "source": "https://isv-data.oss-cn-hangzhou.aliyuncs.com/ics/MaaS/ASR/test_audio/BAC009S0764W0121.wav", "source_len": 90, "target": "甚至出现交易几乎停滞的情况", "target_len": 13}
+{"key": "BAC009S0916W0489", "source": "https://isv-data.oss-cn-hangzhou.aliyuncs.com/ics/MaaS/ASR/test_audio/BAC009S0916W0489.wav", "source_len": 90, "target": "湖北一公司以员工名义贷款数十员工负债千万", "target_len": 20}
+{"key": "asr_example_cn_en", "source": "https://isv-data.oss-cn-hangzhou.aliyuncs.com/ics/MaaS/ASR/test_audio/asr_example_cn_en.wav", "source_len": 91, "target": "所有只要处理 data 不管你是做 machine learning 做 deep learning 做 data analytics 做 data science 也好 scientist 也好通通都要都做的基本功啊那 again 先先对有一些也许对", "target_len": 19}
+{"key": "ID0012W0014", "source": "https://isv-data.oss-cn-hangzhou.aliyuncs.com/ics/MaaS/ASR/test_audio/asr_example_en.wav", "source_len": 88, "target": "he tried to think how it could be", "target_len": 8}
+```
+
++ 上述数来源2个数据
+
+1. `train_text.txt`
+
+```
+# 文件名（文件ID), text
+ID0012W0013 当客户风险承受能力评估依据发生变化时
+ID0012W0014 所有只要处理 data 不管你是做 machine learning 做 deep learning
+ID0012W0015 he tried to think how it could be
+```
+
+2. `train_wav.scp`
+
+```
+# 文件名（文件ID）， wav路径，wav是16K的采样率
+BAC009S0764W0121 https://isv-data.oss-cn-hangzhou.aliyuncs.com/ics/MaaS/ASR/test_audio/BAC009S0764W0121.wav
+BAC009S0916W0489 https://isv-data.oss-cn-hangzhou.aliyuncs.com/ics/MaaS/ASR/test_audio/BAC009S0916W0489.wav
+ID0012W0015 https://isv-data.oss-cn-hangzhou.aliyuncs.com/ics/MaaS/ASR/test_audio/asr_example_cn_en.wav
+```
+
++ 使用工具`scp2jsonl`进行转换
+
+```shell
+# generate train.jsonl and val.jsonl from wav.scp and text.txt
+scp2jsonl \
+++scp_file_list='["./data/list/train_wav.scp", "./data/list/train_text.txt"]' \
+++data_type_list='["source", "target"]' \
+++jsonl_file_out="./data/list/train.jsonl"
+
+scp2jsonl \
+++scp_file_list='["./data/list/val_wav.scp", "./data/list/val_text.txt"]' \
+++data_type_list='["source", "target"]' \
+++jsonl_file_out="./data/list/val.jsonl"
+```
+
+```shell
+scp2jsonl \
+++scp_file_list='["./train_wav.scp", "./train_text.txt"]' \
+++data_type_list='["source", "target"]' \
+++jsonl_file_out="./train.jsonl"
+
+scp2jsonl \
+++scp_file_list='["./val_wav.scp", "./val_text.txt"]' \
+++data_type_list='["source", "target"]' \
+++jsonl_file_out="./val.jsonl"
+```
+
+
+如果从jsonl文件返回txt和scp文件则可以
+
+```shell
+# generate wav.scp and text.txt from train.jsonl and val.jsonl
+jsonl2scp \
+++scp_file_list='["./data/list/train_wav.scp", "./data/list/train_text.txt"]' \
+++data_type_list='["source", "target"]' \
+++jsonl_file_in="./data/list/train.jsonl"
+```
+
+
+#### 3. 模型训练
+
+```shell
+# os.environ['PYTORCH_JIT'] = '0'
+funasr/bin/train.py \
+++model="/home/myuser/LLMs/asr/FunASR/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online" \
+++train_data_set_list="/home/myuser/LLMs/asr/FunASR/data/list/train.jsonl" \
+++valid_data_set_list="/home/myuser/LLMs/asr/FunASR/data/list/val.jsonl" \
+++dataset="AudioDataset" \
+++dataset_conf.index_ds="IndexDSJsonl" \
+++dataset_conf.data_split_num=1 \
+++dataset_conf.batch_sampler="BatchSampler" \
+++dataset_conf.batch_size=1 \
+++dataset_conf.batch_type="token" \
+++dataset_conf.num_workers=1 \
+++train_conf.max_epoch=5 \
+++train_conf.log_interval=10 \
+++train_conf.resume=false \
+++train_conf.validate_interval=2000 \
+++train_conf.save_checkpoint_interval=2000 \
+++train_conf.keep_nbest_models=20 \
+++train_conf.avg_nbest_model=10 \
+++optim_conf.lr=0.0002 \
+++output_dir="./save_model" &> train_20240626.log
+
+
+funasr/bin/train.py \
+++model="/workspace/FunASR/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online" \
+++train_data_set_list="/workspace/FunASR/data/train.jsonl" \
+++valid_data_set_list="/workspace/FunASR/data/val.jsonl" \
+++dataset="AudioDataset" \
+++dataset_conf.index_ds="IndexDSJsonl" \
+++dataset_conf.data_split_num=1 \
+++dataset_conf.batch_sampler="BatchSampler" \
+++dataset_conf.batch_size=512 \
+++dataset_conf.batch_type="token" \
+++dataset_conf.num_workers=4 \
+++train_conf.max_epoch=50 \
+++train_conf.log_interval=50 \
+++train_conf.resume=false \
+++train_conf.validate_interval=500 \
+++train_conf.save_checkpoint_interval=500 \
+++train_conf.keep_nbest_models=20 \
+++train_conf.avg_nbest_model=10 \
+++optim_conf.lr=0.0002 \
+++output_dir="./save_model" 
+
+```
+
+参数说明：
+
+
++ `model`（str）: The name of the model (the ID in the model repository), at which point the script will automatically download the model to local storage; alternatively, the path to a model already downloaded locally.
++ `train_data_set_list`（str）: The path to the training data, typically in jsonl format, for specific details refer to examples.
++ `valid_data_set_list`（str）：The path to the validation data, also generally in jsonl format, for specific details refer to examples](https://github.com/alibaba-damo-academy/FunASR/blob/main/data/list).
++ `dataset_conf.batch_type`（str）：example (default), the type of batch. example means batches are formed with a fixed number of batch_size samples; length or token means dynamic batching, with total length or number of tokens of the batch equalling batch_size.
++ `dataset_conf.batch_size`（int）：Used in conjunction with batch_type. When batch_type=example, it represents the number of samples; when batch_type=length, it represents the length of the samples, measured in fbank frames (1 frame = 10 ms) or the number of text tokens.
++ `train_conf.max_epoch`（int）：The total number of epochs for training.
++ `train_conf.log_interval`（int）：The number of steps between logging.
++ `train_conf.resume`（int）：Whether to enable checkpoint resuming for training.
++ `train_conf.validate_interval`（int）：The interval in steps to run validation tests during training.
++ `train_conf.save_checkpoint_interval`（int）：The interval in steps for saving the model during training.
++ `train_conf.keep_nbest_models`（int）：The maximum number of model parameters to retain, sorted by validation set accuracy, from highest to lowest.
++ `train_conf.avg_nbest_model`（int）：Average over the top n models with the highest accuracy.
++ `optim_conf.lr`（float）：The learning rate.
++ `output_dir`（str）：The path for saving the model.
++ `**kwargs`(dict): Any parameters in config.yaml can be specified directly here, for example, to filter out audio longer than 20s: dataset_conf.max_token_length=2000, measured in fbank frames (1 frame = 10 ms) or the number of text tokens.
+
+看到下述界面应该是训练过程成功了：
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p24.png"   /> 
+</div>
+
+
+训练数据的相关统计：
+
+```shell
+wave num: 4325
+Effective hours:  9.08088696180557
+```
+
+
+训练的日志：
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p25.png"   /> 
+</div>
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p26.png"   /> 
+</div>
+
+
+#### 4. 流式语音识别服务的搭建
+
+<!-- https://mp.weixin.qq.com/s/8He081-FM-9IEI4D-lxZ9w -->
+FunASR实时语音听写软件包，集成了实时版本的语音端点检测模型(静音检测）、语音识别、标点预测模型等。采用多模型协同，既可以实时的进行语音转文字，也可以在说话句尾用高精度转写文字修正输出，输出文字带有标点，支持多路请求。依据使用者场景不同，支持实时语音听写服务（online）、非实时一句话转写（offline）与实时与非实时一体化协同（2pass）3种服务模式。软件包提供有html、python、c++、java与c#等多种编程语言客户端，用户可以直接使用与进一步开发。
+
+<div align=center>
+    <img src="zh-cn/img/ch31/online_structure.png"   /> 
+</div>
+
+0. 流式语音识别镜像拉取
+
+```shell
+sudo docker pull \
+  registry.cn-hangzhou.aliyuncs.com/funasr_repo/funasr:funasr-runtime-sdk-online-cpu-0.1.10
+
+mkdir -p ./funasr-runtime-resources/models
+
+sudo docker run -p 10096:10095 -it --privileged=true \
+  -v $PWD/funasr-runtime-resources/models:/workspace/models \
+  registry.cn-hangzhou.aliyuncs.com/funasr_repo/funasr:funasr-runtime-sdk-online-cpu-0.1.10
+```
+
+
+1. 模型转换
+pytorch导出onnx：
+
+```shell
+funasr-export ++model=/workspace/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online/ ++output-dir=/workspace/models ++type=onnx ++quantize=true
+```
+
+```shell
+funasr-export ++model=/workspace/save_model/  ++type=onnx ++quantize=true
+```
+
+
+```shell
+funasr-export ++model=../save_model/  ++type=onnx ++quantize=true
+```
+
+!> 导出过程可能会出现`model.export_model`的错误，注意按照错误指导进行修改。国人的开源项目去开发的时候本着不PR就不要PUA的原则任何报错只能自己动手去搞
+
+
+3. 静音检测, 标点预测, 语言模型模型, 逆文本标准化
+
++ FSMN语音端点检测：https://modelscope.cn/models/iic/speech_fsmn_vad_zh-cn-8k-common
++ CT-Transformer标点预测： https://modelscope.cn/models/iic/punc_ct-transformer_zh-cn-common-vocab272727-onnx
++ 基于FST的Ngram语言模型：https://modelscope.cn/models/iic/speech_ngram_lm_zh-cn-ai-wesp-fst 
++ 基于FST的中文ITN: https://modelscope.cn/models/thuduj12/fst_itn_zh
++ 关于热词模型： https://github.com/modelscope/FunASR/issues/851
+
+
+语音识别的后处理技术，主要是优化语音识别产品的用户体验，包括：口语顺滑(Disfluency Detection)、标点恢复(Punctuation Restoration)和逆文本标准化(Inverse Text Normalization)等。
+
+
+4. 语言模型的训练
+
+替换掉原有的语音识别模型。
+
+参考：[FunASR部署流式或非流式加热词和语言模型的Paraformer](https://dataxujing.github.io/ASR-paper/#/zh-cn/31_paraformer?id=_2funasr%e9%83%a8%e7%bd%b2%e6%b5%81%e5%bc%8f%e6%88%96%e9%9d%9e%e6%b5%81%e5%bc%8f%e5%8a%a0%e7%83%ad%e8%af%8d%e5%92%8c%e8%af%ad%e8%a8%80%e6%a8%a1%e5%9e%8b%e7%9a%84paraformer)
+中的语言模型的训练的介绍
+
++ https://github.com/modelscope/FunASR/blob/main/runtime/docs/lm_train_tutorial.md
+
+注意需要安装openfst: 
+
++ https://www.openfst.org/twiki/bin/view/FST/FstDownload
++ https://blog.csdn.net/qq_33424313/article/details/122293358
+
+设置环境变量
+
+```shell
+export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+```
+
+
+5. 扩展热词
+
+模型不变，增加热词词典
+
+<div align=center>
+    <img src="zh-cn/img/ch31/p27.png"   /> 
+</div>
+
+
+6. 开启流式语音识别服务
+
+
++ https://github.com/modelscope/FunASR/blob/main/runtime/docs/SDK_advanced_guide_online_zh.md#%E6%9C%8D%E5%8A%A1%E7%AB%AF%E7%94%A8%E6%B3%95%E8%AF%A6%E8%A7%A3
++ https://github.com/modelscope/FunASR/issues/883
+
+```shell
+cd FunASR/runtime
+nohup bash run_server_2pass.sh \
+  --download-model-dir /workspace/models \
+  --vad-dir damo/speech_fsmn_vad_zh-cn-16k-common-onnx \
+  --model-dir damo/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-onnx  \
+  --online-model-dir damo/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online-onnx  \
+  --punc-dir damo/punc_ct-transformer_zh-cn-common-vad_realtime-vocab272727-onnx \
+  --lm-dir damo/speech_ngram_lm_zh-cn-ai-wesp-fst \
+  --itn-dir thuduj12/fst_itn_zh \
+  --hotword /workspace/models/hotwords.txt > log.txt 2>&1 &
+
+# 如果您想关闭ssl，增加参数：--certfile 0
+# 如果您想使用时间戳或者nn热词模型进行部署，请设置--model-dir为对应模型：
+#   damo/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-onnx（时间戳）
+#   damo/speech_paraformer-large-contextual_asr_nat-zh-cn-16k-common-vocab8404-onnx（nn热词）
+# 如果您想在服务端加载热词，请在宿主机文件./funasr-runtime-resources/models/hotwords.txt配置热词（docker映射地址为/workspace/models/hotwords.txt）:
+#   每行一个热词，格式(热词 权重)：阿里巴巴 20（注：热词理论上无限制，但
+```
+
+
+```shell
+bash run_server_2pass.sh 
+  --certfile 0 \
+  --vad-dir /workspace/models/damo/speech_fsmn_vad_zh-cn-16k-common-onnx \
+  --model-dir /workspace/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online \
+  --online-model-dir /workspace/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online  \
+  --punc-dir /workspace/models/damo/punc_ct-transformer_zh-cn-common-vad_realtime-vocab272727-onnx \
+  --lm-dir /workspace/FunASR/runtime/tools/lm/resource \
+  --itn-dir  /workspace/models/thuduj12/fst_itn_zh \
+  --hotword /workspace/hotwords.txt
+```
+
+```shell
+bash run_server_2pass.sh --certfile 0 --port 10098 --vad-dir /workspace/models/damo/speech_fsmn_vad_zh-cn-16k-common-onnx --model-dir /workspace/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online --online-model-dir /workspace/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online  --punc-dir /workspace/models/damo/punc_ct-transformer_zh-cn-common-vad_realtime-vocab272727-onnx --lm-dir /workspace/FunASR/runtime/tools/lm/resource --itn-dir  /workspace/models/thuduj12/fst_itn_zh --hotword /workspace/hotwords.txt
+
+```
+
+```shell
+bash run_server_2pass.sh --certfile 0 --port 10098 --vad-dir /workspace/models/damo/speech_fsmn_vad_zh-cn-16k-common-onnx --model-dir /workspace/save_model --online-model-dir /workspace/save_model  --punc-dir /workspace/models/damo/punc_ct-transformer_zh-cn-common-vad_realtime-vocab272727-onnx --lm-dir /workspace/FunASR/runtime/tools/lm/resource --itn-dir  /workspace/models/thuduj12/fst_itn_zh --hotword /workspace/hotwords.txt
+
+```
+
+部署的最终命令：
+
+```shell
+bash run_server_2pass.sh --certfile 0 --port 10098 --vad-dir /workspace/models/damo/speech_fsmn_vad_zh-cn-16k-common-onnx --model-dir /workspace/models/damo/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-onnx --online-model-dir /workspace/save_model  --punc-dir /workspace/models/damo/punc_ct-transformer_zh-cn-common-vad_realtime-vocab272727-onnx --lm-dir /workspace/FunASR/runtime/tools/lm/resource --itn-dir  /workspace/models/thuduj12/fst_itn_zh --hotword /workspace/hotwords.txt
+
+```
+
+```shell
+ps -x | grep funasr
+kill -9 ID
+```
+
+
+#### 5. C++流式语音识别客户端调用
+
 TODO
+
 
 ### 2.FunASR部署流式或非流式加热词和语言模型的Paraformer
 

@@ -50,6 +50,8 @@
 - TensorRT ASR模型部署(暂时不开源，可提供有偿服务)
 
 - [x] 31.Paraformer and  FunASR
+- [x] 32.Whisper
+
 
 
 
